@@ -193,7 +193,7 @@ test('the raw killmail is served back verbatim', async () => {
 
 test('a battle report aggregates the window into sides', async () => {
   const html = await (await fetch(
-    `${base}/battle?from=2026-06-27T15:00&to=2026-06-27T16:00`
+    `${base}/battle/report?from=2026-06-27T15:00&to=2026-06-27T16:00`
   )).text();
 
   assert.match(html, /Damage timeline/);
@@ -207,21 +207,42 @@ test('a battle report aggregates the window into sides', async () => {
 
 test('a battle report with no killmails in range says so', async () => {
   const html = await (await fetch(
-    `${base}/battle?from=2020-01-01T00:00&to=2020-01-02T00:00`
+    `${base}/battle/report?from=2020-01-01T00:00&to=2020-01-02T00:00`
   )).text();
   assert.match(html, /No killmails between/);
 });
 
 test('the battle window accepts presets', async () => {
-  const res = await fetch(`${base}/battle?preset=30d`);
+  const res = await fetch(`${base}/battle/report?preset=30d`);
   assert.equal(res.status, 200);
+});
+
+test('the battles tab lists detected battles', async () => {
+  const res = await fetch(`${base}/battle?scan=90d&min=1`);
+  assert.equal(res.status, 200);
+
+  const html = await res.text();
+  assert.match(html, /Detected battles/);
+  // The fixture is a single killmail, so it only shows with a minimum of 1.
+  assert.match(html, /Ahbazon/);
+  assert.match(html, /href="\/battle\/report\?[^"]+"/, 'each battle links to its report');
+});
+
+test('the battles tab hides lone killmails by default', async () => {
+  const html = await (await fetch(`${base}/battle?scan=90d`)).text();
+  assert.match(html, /No battles found/);
+});
+
+test('the battle detection settings are adjustable from the query', async () => {
+  const html = await (await fetch(`${base}/battle?scan=90d&min=1&gap=45`)).text();
+  assert.match(html, /within 45 minutes/);
 });
 
 test('the kill page links to a battle report around that kill', async () => {
   const list = await (await fetch(`${base}/api/killmails`)).json();
   const html = await (await fetch(`${base}/kill/${list.killmails[0].id}`)).text();
 
-  const match = html.match(/href="(\/battle\?[^"]+)"/);
+  const match = html.match(/href="(\/battle\/report\?[^"]+)"/);
   assert.ok(match, 'kill page should carry a battle report link');
 
   const target = match[1].replace(/&amp;/g, '&');

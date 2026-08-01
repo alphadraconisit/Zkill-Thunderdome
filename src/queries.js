@@ -283,6 +283,37 @@ async function battleWindow({ from, to, system = null }) {
   return { kills, attackers, truncated: kills.length === BATTLE_LIMIT };
 }
 
+const SCAN_LIMIT = 4000;
+
+/**
+ * Killmails and their participants over a scan window, for battle detection.
+ * Only the columns the clusterer needs, so a month of history stays cheap.
+ */
+async function battleScan({ from, to }) {
+  const kills = await all(`
+    SELECT id, killed_at, system, security, victim_name, victim_corp, victim_alliance,
+           ship, damage_taken
+    FROM killmails
+    WHERE killed_at >= @from AND killed_at <= @to
+    ORDER BY killed_at DESC, id DESC
+    LIMIT @limit
+  `, { from, to, limit: SCAN_LIMIT });
+
+  if (!kills.length) return { kills: [], attackers: [], truncated: false };
+
+  const ids = kills.map((k) => k.id);
+  const placeholders = ids.map((_, i) => `@id${i}`).join(',');
+  const idParams = Object.fromEntries(ids.map((id, i) => [`id${i}`, id]));
+
+  const attackers = await all(`
+    SELECT killmail_id, name, corp, alliance, damage
+    FROM attackers
+    WHERE killmail_id IN (${placeholders})
+  `, idParams);
+
+  return { kills, attackers, truncated: kills.length === SCAN_LIMIT };
+}
+
 /** Systems that have seen fighting, for the battle-report picker. */
 async function systemsWithKills(limit = 200) {
   const rows = await all(`
@@ -321,7 +352,9 @@ module.exports = {
   activity,
   search,
   battleWindow,
+  battleScan,
   systemsWithKills,
   distinctShipNames,
   BATTLE_LIMIT,
+  SCAN_LIMIT,
 };

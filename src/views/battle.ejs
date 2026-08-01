@@ -1,6 +1,6 @@
 <%- include('partials/header') %>
 
-<form class="filterbar" method="get" action="/battle">
+<form class="filterbar" method="get" action="/battle/report">
   <div class="filterfield">
     <label for="from">From &mdash; EVE time (UTC)</label>
     <input type="datetime-local" id="from" name="from" value="<%= window.fromInput %>">
@@ -22,7 +22,7 @@
   <div class="presets">
     <% Object.entries(presets).forEach(([key, value]) => { %>
       <a class="pg <%= preset === key ? 'current' : '' %>"
-         href="<%= h.buildQuery(system ? { system } : {}, { preset: key }) %>"><%= value.label %></a>
+         href="/battle/report<%= h.buildQuery(system ? { system } : {}, { preset: key }) %>"><%= value.label %></a>
     <% }) %>
   </div>
 
@@ -34,6 +34,8 @@
     <span class="dim">(<%= duration %> window<%= system ? `, ${system} only` : ', all systems' %>)</span>
   </p>
 </form>
+
+<p class="crumb"><a href="/battle">&larr; All detected battles</a></p>
 
 <% if (!report.summary.killmails) { %>
   <section class="panel">

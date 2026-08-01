@@ -1,0 +1,105 @@
+<%- include('partials/header') %>
+
+<form class="filterbar" method="get" action="/battle">
+  <div class="filterfield">
+    <label for="gap">Same battle if kills are within</label>
+    <span class="inputsuffix">
+      <input type="number" id="gap" name="gap" min="1" max="180" value="<%= gapMinutes %>">
+      <span>minutes</span>
+    </span>
+  </div>
+  <div class="filterfield">
+    <label for="min">Minimum kills</label>
+    <input type="number" id="min" name="min" min="1" max="50" value="<%= minKills %>">
+  </div>
+  <input type="hidden" name="scan" value="<%= scanKey %>">
+  <button class="btn" type="submit">Rescan</button>
+
+  <div class="presets">
+    <% Object.entries(scanPresets).forEach(([key, value]) => { %>
+      <a class="pg <%= scanKey === key ? 'current' : '' %>"
+         href="<%= h.buildQuery({ gap: gapMinutes, min: minKills }, { scan: key }) %>"><%= value.label %></a>
+    <% }) %>
+  </div>
+
+  <p class="filterhint">
+    Grouping the <strong><%= h.num(scanned) %></strong> killmails from the <%= windowLabel %>
+    into battles: kills in the same system, within <%= gapMinutes %> minutes of each other,
+    that share at least one pilot, corp or alliance.
+  </p>
+</form>
+
+<% if (truncated) { %>
+  <div class="alert info">
+    This scan hit the <%= h.num(scanLimit) %>-killmail cap and covers only the most recent
+    <%= h.num(scanLimit) %>. Choose a shorter window for complete coverage.
+  </div>
+<% } %>
+
+<section class="panel">
+  <div class="panel-head">
+    <h1 class="panel-title">Detected battles <span class="dim">(<%= battles.length %>)</span></h1>
+    <a class="btn ghost" href="/battle/report">Build a custom report &rarr;</a>
+  </div>
+
+  <% if (!battles.length) { %>
+    <p class="empty">
+      No battles found in the <%= windowLabel %>.
+      <% if (scanned) { %>
+        Those <%= h.num(scanned) %> killmails were all isolated — try a longer gap or a
+        minimum of 1 kill.
+      <% } else { %>
+        There are no killmails in this window at all.
+      <% } %>
+    </p>
+  <% } else { %>
+    <ol class="battlelist">
+      <% battles.forEach((battle) => { %>
+        <li class="battlecard">
+          <a class="battlecard-link" href="<%= battle.url %>">
+            <span class="battlecard-when">
+              <span class="battlecard-date"><%= h.formatDate(battle.start).slice(0, 10) %></span>
+              <span class="battlecard-time"><%= h.clock(battle.start) %> &ndash; <%= h.clock(battle.end) %></span>
+              <span class="dim"><%= h.timeAgo(battle.start) %></span>
+            </span>
+
+            <span class="battlecard-main">
+              <span class="battlecard-title">
+                <span class="battlecard-system"><%= battle.system %></span>
+                <span class="dim">&middot; <%= h.formatDuration(battle.durationMs) %></span>
+              </span>
+              <span class="battlecard-sides">
+                <% battle.sides.forEach((side, i) => { %>
+                  <% if (i) { %><span class="vs">vs</span><% } %>
+                  <span class="battlecard-side" style="--team: <%= h.seriesColor(i) %>">
+                    <span class="battlecard-side-key"></span><%= side.label %>
+                  </span>
+                <% }) %>
+                <% if (battle.sideCount > battle.sides.length) { %>
+                  <span class="dim">+<%= battle.sideCount - battle.sides.length %> more</span>
+                <% } %>
+              </span>
+            </span>
+
+            <span class="battlecard-figures">
+              <span class="battlefig">
+                <b><%= h.num(battle.killCount) %></b>
+                <span>ships lost</span>
+              </span>
+              <span class="battlefig">
+                <b><%= h.num(battle.pilotCount) %></b>
+                <span>pilots</span>
+              </span>
+              <span class="battlefig">
+                <b><%= h.chartNumber(battle.damage) %></b>
+                <span>damage</span>
+              </span>
+            </span>
+          </a>
+        </li>
+      <% }) %>
+    </ol>
+  <% } %>
+</section>
+
+<%- include('partials/footer') %>

@@ -65,7 +65,7 @@ router.get('/kill/:id', wrap(async (req, res, next) => {
   res.render('kill', {
     title: `${kill.victim_name} — ${kill.ship}`,
     kill,
-    battleUrl: `/battle?${battleQuery}`,
+    battleUrl: `/battle/report?${battleQuery}`,
   });
 }));
 

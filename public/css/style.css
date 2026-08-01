@@ -846,3 +846,82 @@ pre.code {
   .battlewhen { text-align: left; }
   
 }
+
+/* ---------- detected battles list ---------- */
+
+.crumb { margin: -.4rem 0 1rem; font-size: .85rem; }
+
+.inputsuffix { display: flex; align-items: center; gap: .4rem; }
+.inputsuffix input { width: 5.5rem; }
+.inputsuffix span { font-size: .8rem; color: var(--text-dim); }
+.filterfield input[type="number"] {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  padding: .4rem .6rem;
+  font: inherit;
+  width: 5.5rem;
+}
+.filterfield input[type="number"]:focus { outline: none; border-color: var(--accent-dim); }
+
+.battlelist { list-style: none; margin: 0; padding: 0; }
+.battlecard + .battlecard { margin-top: .5rem; }
+
+.battlecard-link {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr) auto;
+  gap: 1rem;
+  align-items: center;
+  padding: .7rem .85rem;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent-dim);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+  color: var(--text);
+}
+.battlecard-link:hover {
+  text-decoration: none;
+  border-left-color: var(--accent);
+  background: #1e2735;
+}
+
+.battlecard-when { display: flex; flex-direction: column; font-size: .8rem; }
+.battlecard-date { color: var(--text-dim); font-variant-numeric: tabular-nums; }
+.battlecard-time { color: var(--text-bright); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+.battlecard-main { min-width: 0; }
+.battlecard-title { display: block; margin-bottom: .2rem; }
+.battlecard-system { color: var(--accent); font-weight: 700; font-size: 1.02rem; }
+
+.battlecard-sides {
+  display: flex; align-items: center; gap: .45rem;
+  flex-wrap: wrap; font-size: .84rem; color: var(--text);
+}
+.battlecard-side { display: inline-flex; align-items: center; gap: .35rem; }
+.battlecard-side-key {
+  width: 9px; height: 9px; border-radius: 2px;
+  background: var(--team, var(--accent)); flex: none;
+}
+.battlecard-sides .vs {
+  color: var(--text-dim); font-size: .74rem; text-transform: uppercase; letter-spacing: .06em;
+}
+
+.battlecard-figures { display: flex; gap: 1.5rem; }
+.battlefig { display: flex; flex-direction: column; text-align: right; }
+.battlefig b { color: var(--text-bright); font-size: 1.05rem; font-variant-numeric: tabular-nums; }
+.battlefig span {
+  font-size: .64rem; text-transform: uppercase; letter-spacing: .08em; color: var(--text-dim);
+}
+
+@media (max-width: 760px) {
+  .battlecard-link {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "when" "main" "figures";
+    gap: .5rem;
+  }
+  .battlecard-when { grid-area: when; flex-direction: row; gap: .5rem; align-items: baseline; }
+  .battlecard-main { grid-area: main; }
+  .battlecard-figures { grid-area: figures; gap: 1.25rem; }
+  .battlefig { text-align: left; }
+}

@@ -18,6 +18,9 @@ indexing, and building per-pilot / corp / alliance / system / ship pages on top 
 - **Entity pages** for pilots, corporations, alliances, systems and ships, each with
   kills / losses / efficiency, All / Kills / Losses tabs, and side panels for ships flown,
   ships lost and who they fight alongside.
+- **Battle detection.** Killmails are clustered into distinct fights by system, time
+  proximity and shared participants, and listed on the Battles tab — no manual window
+  picking, no model in the loop.
 - **Battle reports.** Aggregate any time window (optionally one system) into sides —
   one per alliance — with per-pilot damage dealt and taken and a cumulative damage
   timeline.
@@ -157,16 +160,46 @@ There are two independent gates, so you can run the board any of three ways:
 - **Fully private** — also set `SITE_PASSWORD`; nothing is readable without it.
 - **Automated feed** — set `API_KEY` and post killmails from your server.
 
+## Battles
+
+The **Battles** tab detects distinct fights automatically and lists them, newest first.
+Each card shows the system, EVE-time range, duration, ships lost, participants, damage
+and the leading sides, and links straight to that battle's full report.
+
+### How battles are detected
+
+A battle is a run of killmails in **one system** where each mail happens within
+`gap` minutes of the battle's latest kill **and shares at least one participating
+pilot, corporation or alliance** with it. Sharing participants is what separates a
+real engagement from an unrelated gank that happens in the same system ten minutes
+later.
+
+That is single-link clustering over (system, time, participants). It is deterministic —
+the same killmails always produce the same battles — and needs no model, no API key
+and no network call. A killmail that touches two open battles merges them, which is
+what happens when two skirmishes converge into one fight.
+
+Two knobs sit above the list:
+
+- **Gap** (default 20 minutes) — the longest quiet stretch that still counts as the
+  same fight. Lower it to split long grinding engagements, raise it to join them.
+- **Minimum kills** (default 2) — lone killmails are ganks, not battles. Set it to 1
+  to see everything.
+
+Detection runs over the selected scan window on each page load, capped at 4000
+killmails.
+
 ## Battle reports
 
-`/battle` takes a time window and turns every killmail inside it into a two-or-more
+`/battle/report` takes a time window and turns every killmail inside it into a two-or-more
 sided report: damage dealt and taken per side and per pilot, kills, losses, and a
 cumulative damage-over-time chart. Deliberately **no ISK anywhere** — a private
 server has no market to price hulls against, so damage is the honest currency.
 
 Pick a window with the presets (last hour through last 30 days) or explicit
-from/to fields, and optionally narrow to one system. Every kill detail page also
-carries a **Battle report** button, which opens the hour either side of that kill
+from/to fields, and optionally narrow to one system. Reports are normally reached by
+clicking a detected battle, but the window is always editable. Every kill detail page
+also carries a **Battle report** button, which opens the hour either side of that kill
 in the same system.
 
 ### How sides are worked out
@@ -230,6 +263,7 @@ Battle reports are a page (`/battle?from=…&to=…&system=…`), not an API end
 src/
   parser.js      killmail text -> structured data (no I/O)
   battle.js      side grouping and battle aggregation (no I/O)
+  battles.js     battle detection: clusters killmails into distinct fights
   chart.js       server-side SVG geometry for the damage timeline
   db.js          libSQL client, schema, transactional writes
   queries.js     read queries, stats and leaderboards
