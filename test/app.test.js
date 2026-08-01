@@ -238,6 +238,27 @@ test('the battle detection settings are adjustable from the query', async () => 
   assert.match(html, /within 45 minutes/);
 });
 
+test('a battle report can be anchored to a single killmail', async () => {
+  const list = await (await fetch(`${base}/api/killmails`)).json();
+  const id = list.killmails[0].id;
+
+  const res = await fetch(`${base}/battle/report?kill=${id}`);
+  assert.equal(res.status, 200);
+
+  const html = await res.text();
+  assert.match(html, /one detected battle/, 'the report states it covers a single battle');
+  assert.match(html, /EF Zeta/);
+});
+
+test('an anchor that is not a killmail 404s', async () => {
+  assert.equal((await fetch(`${base}/battle/report?kill=999999`)).status, 404);
+});
+
+test('detected battles link to their anchored report', async () => {
+  const html = await (await fetch(`${base}/battle?scan=90d&min=1`)).text();
+  assert.match(html, /href="\/battle\/report\?kill=\d+"/);
+});
+
 test('the kill page links to a battle report around that kill', async () => {
   const list = await (await fetch(`${base}/api/killmails`)).json();
   const html = await (await fetch(`${base}/kill/${list.killmails[0].id}`)).text();

@@ -1,5 +1,17 @@
 <%- include('partials/header') %>
 
+<% if (anchored) { %>
+  <div class="anchornote">
+    <span>
+      Reporting on <strong>one detected battle</strong> &mdash;
+      <%= h.num(report.summary.killmails) %> killmails in <%= anchored.system %>,
+      <%= h.formatDuration(anchored.durationMs) %> from <%= h.clock(anchored.start) %>.
+    </span>
+    <a class="btn ghost" href="/battle/report<%= h.buildQuery({}, { from: window.fromInput, to: window.toInput, system: system || null }) %>">
+      Edit as a custom window
+    </a>
+  </div>
+<% } else { %>
 <form class="filterbar" method="get" action="/battle/report">
   <div class="filterfield">
     <label for="from">From &mdash; EVE time (UTC)</label>
@@ -34,6 +46,7 @@
     <span class="dim">(<%= duration %> window<%= system ? `, ${system} only` : ', all systems' %>)</span>
   </p>
 </form>
+<% } %>
 
 <p class="crumb"><a href="/battle">&larr; All detected battles</a></p>
 
@@ -91,6 +104,24 @@
     <div class="alert info">
       This window hit the <%= h.num(limit) %>-killmail cap, so the report covers only the
       earliest <%= h.num(limit) %>. Narrow the time range for a complete picture.
+    </div>
+  <% } %>
+
+  <% if (!anchored && contained.length > 1) { %>
+    <div class="alert info">
+      <strong>This window covers <%= contained.length %> separate battles</strong>, so the
+      figures below add them together. Open one on its own:
+      <ul class="battlelinks">
+        <% contained.forEach((b) => { %>
+          <li>
+            <a href="<%= b.url %>"><%= b.system %> &middot; <%= h.clock(b.start) %>&ndash;<%= h.clock(b.end) %></a>
+            <span class="dim">
+              <%= h.num(b.killCount) %> ships, <%= h.num(b.pilotCount) %> pilots,
+              <%= h.formatDuration(b.durationMs) %>
+            </span>
+          </li>
+        <% }) %>
+      </ul>
     </div>
   <% } %>
 

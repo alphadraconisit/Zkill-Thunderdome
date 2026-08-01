@@ -5,18 +5,26 @@ const { entityOf } = require('./battle');
 /**
  * Battle detection.
  *
- * A battle is a run of killmails in one system that are *related*: each mail
- * joins a battle when it happens within `gapMinutes` of that battle's latest
- * kill and shares at least one participating entity with it. Sharing is what
- * separates one fight from an unrelated gank happening in the same system ten
- * minutes later.
+ * A battle is a run of killmails in one system that are *related*. A mail joins
+ * a battle when all three hold:
  *
- * This is single-link clustering over (system, time, participants). It is
- * deterministic — the same killmails always produce the same battles — and
- * runs in a single pass per system.
+ *   1. it happens within `gapMinutes` of that battle's latest kill;
+ *   2. it shares at least one participating pilot, corp or alliance with it;
+ *   3. the victim has not already lost a ship in it.
+ *
+ * Rule 2 separates a fight from an unrelated gank in the same system minutes
+ * later. Rule 3 is the sharp one: a pilot only has one ship to lose, so a
+ * second loss means they re-shipped and returned, which makes it a new battle
+ * however close the clock says it was. Pods are exempt — a capsule dies right
+ * after the ship that was carrying it, in the same fight.
+ *
+ * This is single-link clustering over (system, time, participants), with rule 3
+ * as a hard boundary. It is deterministic — the same killmails always produce
+ * the same battles — and runs in a single pass per system.
  *
  * A mail that bridges two open battles merges them, which is what happens when
- * two skirmishes converge into one fight.
+ * two skirmishes converge into one fight, unless merging would give some pilot
+ * two ship losses.
  */
 
 const DEFAULTS = {
@@ -26,6 +34,28 @@ const DEFAULTS = {
 
 function timeOf(kill) {
   return new Date(kill.killed_at).getTime();
+}
+
+/**
+ * A pod loss follows the ship loss that made it, so it does not count as a
+ * second ship for the one-loss-per-pilot rule below.
+ */
+function isPod(kill) {
+  return /^capsule\b/i.test(kill.ship || '');
+}
+
+function victimKey(kill) {
+  return (kill.victim_name || '').toLowerCase();
+}
+
+/**
+ * A pilot can only lose one ship per battle — to lose a second they had to
+ * re-ship, which means the first fight was over. So a repeat ship loss by the
+ * same pilot marks a battle boundary, whatever the clock says.
+ */
+function canAcceptVictim(cluster, kill) {
+  if (isPod(kill)) return true;
+  return !cluster.shipLosses.has(victimKey(kill));
 }
 
 /** Entities and pilots on a killmail, both sides included. */
@@ -53,20 +83,24 @@ function intersects(a, b) {
 }
 
 function newCluster(kill, participants) {
-  return {
+  const cluster = {
     system: kill.system,
-    kills: [kill],
-    entities: new Set(participants.entities),
-    pilots: new Set(participants.pilots),
+    kills: [],
+    entities: new Set(),
+    pilots: new Set(),
+    shipLosses: new Set(),
     start: timeOf(kill),
     end: timeOf(kill),
   };
+  absorb(cluster, kill, participants);
+  return cluster;
 }
 
 function absorb(cluster, kill, participants) {
   cluster.kills.push(kill);
   for (const e of participants.entities) cluster.entities.add(e);
   for (const p of participants.pilots) cluster.pilots.add(p);
+  if (!isPod(kill)) cluster.shipLosses.add(victimKey(kill));
   cluster.end = Math.max(cluster.end, timeOf(kill));
   cluster.start = Math.min(cluster.start, timeOf(kill));
 }
@@ -75,6 +109,7 @@ function mergeInto(target, other) {
   target.kills.push(...other.kills);
   for (const e of other.entities) target.entities.add(e);
   for (const p of other.pilots) target.pilots.add(p);
+  for (const v of other.shipLosses) target.shipLosses.add(v);
   target.start = Math.min(target.start, other.start);
   target.end = Math.max(target.end, other.end);
 }
@@ -122,18 +157,36 @@ function detectBattles(kills, attackers, options = {}) {
       }
       open = stillOpen;
 
-      const matches = open.filter((cluster) => intersects(cluster.entities, participants.entities));
+      const related = open.filter((cluster) => intersects(cluster.entities, participants.entities));
+
+      // This pilot already lost a ship in these battles, so they re-shipped and
+      // those battles have ended. Retire them rather than let later kills
+      // stitch the old fight back onto the new one.
+      const ended = related.filter((cluster) => !canAcceptVictim(cluster, kill));
+      if (ended.length) {
+        finished.push(...ended);
+        open = open.filter((cluster) => !ended.includes(cluster));
+      }
+
+      const matches = related.filter((cluster) => !ended.includes(cluster));
 
       if (matches.length === 0) {
         open.push(newCluster(kill, participants));
         continue;
       }
 
-      // This kill ties every matching cluster together into one battle.
-      const [primary, ...rest] = matches;
+      // This kill ties the matching clusters together into one battle, but only
+      // those that can merge without giving a pilot two ship losses.
+      const [primary, ...candidates] = matches;
       absorb(primary, kill, participants);
-      for (const other of rest) mergeInto(primary, other);
-      if (rest.length) open = open.filter((c) => c === primary || !rest.includes(c));
+
+      const merged = [];
+      for (const other of candidates) {
+        if (intersects(primary.shipLosses, other.shipLosses)) continue;
+        mergeInto(primary, other);
+        merged.push(other);
+      }
+      if (merged.length) open = open.filter((c) => !merged.includes(c));
     }
 
     finished.push(...open);
@@ -167,6 +220,7 @@ function summariseBattle(cluster, byKill) {
 
   return {
     system: cluster.system,
+    killIds: kills.map((k) => k.id),
     startMs: cluster.start,
     endMs: cluster.end,
     start: new Date(cluster.start).toISOString(),
@@ -182,4 +236,10 @@ function summariseBattle(cluster, byKill) {
   };
 }
 
-module.exports = { detectBattles, DEFAULTS };
+/** The detected battle a given killmail belongs to, or null. */
+function findBattleContaining(kills, attackers, killId, options = {}) {
+  const battles = detectBattles(kills, attackers, { ...options, minKills: 1 });
+  return battles.find((battle) => battle.killIds.includes(killId)) || null;
+}
+
+module.exports = { detectBattles, findBattleContaining, isPod, DEFAULTS };

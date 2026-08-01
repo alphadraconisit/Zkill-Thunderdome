@@ -925,3 +925,20 @@ pre.code {
   .battlecard-figures { grid-area: figures; gap: 1.25rem; }
   .battlefig { text-align: left; }
 }
+
+.anchornote {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 1rem; flex-wrap: wrap;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius);
+  padding: .7rem 1rem;
+  margin-bottom: 1.25rem;
+  font-size: .9rem;
+}
+.anchornote strong { color: var(--text-bright); }
+
+.battlelinks { list-style: none; margin: .5rem 0 0; padding: 0; }
+.battlelinks li { padding: .15rem 0; display: flex; gap: .6rem; flex-wrap: wrap; align-items: baseline; }
+.battlelinks .dim { font-size: .82rem; }

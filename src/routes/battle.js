@@ -3,7 +3,7 @@
 const express = require('express');
 const q = require('../queries');
 const { analyseBattle, formatDuration } = require('../battle');
-const { detectBattles, DEFAULTS } = require('../battles');
+const { detectBattles, findBattleContaining, DEFAULTS } = require('../battles');
 const { damageTimeline } = require('../chart');
 const { wrap } = require('../async');
 
@@ -62,17 +62,16 @@ function resolveWindow(query) {
   return { from: now - PRESETS['24h'].ms, to: now, preset: '24h' };
 }
 
-/** Padding so a battle's own killmails sit comfortably inside its report. */
-const REPORT_PAD_MS = 60000;
-
+/**
+ * Reports are anchored to a killmail rather than a time range: a window can
+ * span several battles in one evening, an anchor names exactly one.
+ */
 function reportUrl(battle) {
-  const params = new URLSearchParams({
-    from: new Date(battle.startMs - REPORT_PAD_MS).toISOString().slice(0, 16),
-    to: new Date(battle.endMs + REPORT_PAD_MS).toISOString().slice(0, 16),
-  });
-  if (battle.system && battle.system !== '(unknown)') params.set('system', battle.system);
-  return `/battle/report?${params}`;
+  return `/battle/report?kill=${battle.killIds[0]}`;
 }
+
+/** How far either side of the anchor to look when rebuilding its battle. */
+const ANCHOR_SCAN_MS = 6 * 3600e3;
 
 /** Battles index — detected fights, most recent first. */
 router.get('/', wrap(async (req, res) => {
@@ -107,33 +106,96 @@ router.get('/', wrap(async (req, res) => {
   });
 }));
 
-/** The detailed report for one window. */
-router.get('/report', wrap(async (req, res) => {
-  const { from, to, preset } = resolveWindow(req.query);
-  const system = (req.query.system || '').trim() || null;
+/**
+ * Rebuilds the single battle a killmail belongs to. Returns null when the
+ * anchor no longer exists.
+ */
+async function battleForKill(killId, gapMinutes) {
+  const anchor = await q.getKillmail(killId);
+  if (!anchor) return null;
 
-  const fromIso = new Date(from).toISOString();
-  const toIso = new Date(to).toISOString();
+  const at = new Date(anchor.killed_at).getTime();
+  const scan = await q.battleScan({
+    from: new Date(at - ANCHOR_SCAN_MS).toISOString(),
+    to: new Date(at + ANCHOR_SCAN_MS).toISOString(),
+  });
 
-  const [{ kills, attackers, truncated }, systems] = await Promise.all([
-    q.battleWindow({ from: fromIso, to: toIso, system }),
-    q.systemsWithKills(),
-  ]);
+  const battle = findBattleContaining(scan.kills, scan.attackers, killId, { gapMinutes });
+  if (!battle) return null;
+
+  const { kills, attackers } = await q.killmailsByIds(battle.killIds);
+  return { battle, kills, attackers };
+}
+
+/**
+ * The detailed report.
+ *
+ * `?kill=<id>` reports on exactly the battle that killmail belongs to — the
+ * normal path in from the battles list. `?from&to[&system]` keeps the manual
+ * window, which may legitimately span several battles; when it does, they are
+ * listed so the reader can open one on its own.
+ */
+router.get('/report', wrap(async (req, res, next) => {
+  const anchorId = Number.parseInt(req.query.kill, 10);
+  const gapMinutes = Math.min(180, Math.max(1,
+    Number.parseInt(req.query.gap, 10) || DEFAULTS.gapMinutes));
+
+  const systemsPromise = q.systemsWithKills();
+  let kills;
+  let attackers;
+  let truncated = false;
+  let anchored = null;
+  let system = (req.query.system || '').trim() || null;
+  let from;
+  let to;
+
+  if (Number.isFinite(anchorId)) {
+    const found = await battleForKill(anchorId, gapMinutes);
+    if (!found) return next();
+
+    ({ kills, attackers } = found);
+    anchored = found.battle;
+    system = found.battle.system && found.battle.system !== '(unknown)' ? found.battle.system : null;
+    from = found.battle.startMs;
+    to = found.battle.endMs;
+  } else {
+    ({ from, to } = resolveWindow(req.query));
+    const window = await q.battleWindow({
+      from: new Date(from).toISOString(),
+      to: new Date(to).toISOString(),
+      system,
+    });
+    kills = window.kills;
+    attackers = window.attackers;
+    truncated = window.truncated;
+  }
 
   const report = analyseBattle(kills, attackers);
   const chart = damageTimeline(report.timeline.series);
 
+  // In window mode, tell the reader when they are looking at more than one fight.
+  const contained = anchored
+    ? []
+    : detectBattles(kills, attackers, { gapMinutes, minKills: 1 })
+      .map((b) => ({ ...b, url: reportUrl(b) }));
+
+  const fromIso = new Date(from).toISOString();
+  const toIso = new Date(to).toISOString();
+
   res.render('battle', {
-    title: 'Battle report',
+    title: anchored ? `Battle in ${anchored.system}` : 'Battle report',
     kills,
     report,
     chart,
     truncated,
     limit: q.BATTLE_LIMIT,
-    systems,
+    systems: await systemsPromise,
     system,
     presets: PRESETS,
-    preset,
+    preset: anchored ? null : resolveWindow(req.query).preset,
+    anchored,
+    contained,
+    gapMinutes,
     window: { from: fromIso, to: toIso, fromInput: toInputValue(fromIso), toInput: toInputValue(toIso) },
     duration: formatDuration(to - from),
   });

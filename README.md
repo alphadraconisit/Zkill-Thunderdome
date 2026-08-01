@@ -168,16 +168,28 @@ and the leading sides, and links straight to that battle's full report.
 
 ### How battles are detected
 
-A battle is a run of killmails in **one system** where each mail happens within
-`gap` minutes of the battle's latest kill **and shares at least one participating
-pilot, corporation or alliance** with it. Sharing participants is what separates a
-real engagement from an unrelated gank that happens in the same system ten minutes
-later.
+A killmail joins a battle when **all three** hold:
 
-That is single-link clustering over (system, time, participants). It is deterministic —
-the same killmails always produce the same battles — and needs no model, no API key
-and no network call. A killmail that touches two open battles merges them, which is
-what happens when two skirmishes converge into one fight.
+1. it is in the **same system**;
+2. it happens within **`gap` minutes** of that battle's latest kill;
+3. it shares at least one **pilot, corporation or alliance** with it;
+4. the victim has **not already lost a ship** in it.
+
+Rule 3 separates a real engagement from an unrelated gank in the same system
+minutes later. Rule 4 is the sharp one: a pilot has one ship to lose, so a second
+loss means they went home, re-shipped and came back — a new battle, however close
+the clock says it was. **Pods are exempt**: a capsule dies moments after the ship
+carrying it, in the same fight, so it is not counted as a second ship. Named
+capsule variants (`Capsule - Genolution …`) count as pods too.
+
+The guarantee this buys you: **no detected battle ever contains two ship losses by
+the same pilot.**
+
+That is single-link clustering over (system, time, participants) with rule 4 as a
+hard boundary. It is deterministic — the same killmails always produce the same
+battles — and needs no model, no API key and no network call. A killmail touching
+two open battles merges them, which is what happens when skirmishes converge,
+unless merging would give some pilot two ship losses.
 
 Two knobs sit above the list:
 
@@ -186,10 +198,23 @@ Two knobs sit above the list:
 - **Minimum kills** (default 2) — lone killmails are ganks, not battles. Set it to 1
   to see everything.
 
+Fleet size is deliberately **not** a criterion. A rule like "10v10" would discard
+both the small skirmishes and the big brawls that bracket it; the participant count
+is reported on every battle so you can judge scale yourself.
+
 Detection runs over the selected scan window on each page load, capped at 4000
 killmails.
 
 ## Battle reports
+
+Reports are **anchored to a battle**, not to a clock. Opening one from the battles
+list uses `/battle/report?kill=<id>`, which rebuilds exactly that battle's killmails
+— so an evening with three fights in one system gives three separate reports rather
+than one merged blur.
+
+The manual form still accepts `?from&to[&system]` for ad-hoc windows. Such a window
+may legitimately span several battles; when it does, the report says so and links to
+each battle individually.
 
 `/battle/report` takes a time window and turns every killmail inside it into a two-or-more
 sided report: damage dealt and taken per side and per pilot, kills, losses, and a

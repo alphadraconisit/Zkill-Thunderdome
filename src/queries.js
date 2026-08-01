@@ -314,6 +314,31 @@ async function battleScan({ from, to }) {
   return { kills, attackers, truncated: kills.length === SCAN_LIMIT };
 }
 
+/** Full killmail rows plus attackers for an explicit set of ids. */
+async function killmailsByIds(ids) {
+  if (!ids.length) return { kills: [], attackers: [] };
+
+  const placeholders = ids.map((_, i) => `@id${i}`).join(',');
+  const params = Object.fromEntries(ids.map((id, i) => [`id${i}`, id]));
+
+  const [kills, attackers] = await Promise.all([
+    all(`
+      SELECT id, killed_at, victim_name, victim_corp, victim_alliance, ship, system,
+             security, damage_taken, attacker_count, final_blow
+      FROM killmails
+      WHERE id IN (${placeholders})
+      ORDER BY killed_at ASC, id ASC
+    `, params),
+    all(`
+      SELECT killmail_id, name, corp, alliance, ship, weapon, damage, final_blow
+      FROM attackers
+      WHERE killmail_id IN (${placeholders})
+    `, params),
+  ]);
+
+  return { kills, attackers };
+}
+
 /** Systems that have seen fighting, for the battle-report picker. */
 async function systemsWithKills(limit = 200) {
   const rows = await all(`
@@ -353,6 +378,7 @@ module.exports = {
   search,
   battleWindow,
   battleScan,
+  killmailsByIds,
   systemsWithKills,
   distinctShipNames,
   BATTLE_LIMIT,
