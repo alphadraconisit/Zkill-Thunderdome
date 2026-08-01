@@ -65,9 +65,30 @@ function resolveWindow(query) {
 /**
  * Reports are anchored to a killmail rather than a time range: a window can
  * span several battles in one evening, an anchor names exactly one.
+ *
+ * Detection settings ride along, because the report re-runs detection to
+ * rebuild the battle and must reach the same answer the list showed.
  */
-function reportUrl(battle) {
-  return `/battle/report?kill=${battle.killIds[0]}`;
+function reportUrl(battle, settings = {}) {
+  const params = new URLSearchParams({ kill: String(battle.killIds[0]) });
+  if (settings.gapMinutes && settings.gapMinutes !== DEFAULTS.gapMinutes) {
+    params.set('gap', String(settings.gapMinutes));
+  }
+  if (settings.lullFactor !== undefined && settings.lullFactor !== DEFAULTS.lullFactor) {
+    params.set('lull', String(settings.lullFactor));
+  }
+  return `/battle/report?${params}`;
+}
+
+/** Shared parsing so the index and the report agree on detection settings. */
+function detectionSettings(query) {
+  return {
+    gapMinutes: Math.min(180, Math.max(1,
+      Number.parseInt(query.gap, 10) || DEFAULTS.gapMinutes)),
+    lullFactor: query.lull === undefined
+      ? DEFAULTS.lullFactor
+      : Math.min(20, Math.max(0, Number.parseInt(query.lull, 10) || 0)),
+  };
 }
 
 /** How far either side of the anchor to look when rebuilding its battle. */
@@ -79,8 +100,8 @@ router.get('/', wrap(async (req, res) => {
   const to = Date.now();
   const from = to - SCAN_PRESETS[scanKey].ms;
 
-  const gapMinutes = Math.min(180, Math.max(1,
-    Number.parseInt(req.query.gap, 10) || DEFAULTS.gapMinutes));
+  // `lull=0` turns off pace-relative splitting and uses the flat gap alone.
+  const { gapMinutes, lullFactor } = detectionSettings(req.query);
   const minKills = Math.min(50, Math.max(1,
     Number.parseInt(req.query.min, 10) || DEFAULTS.minKills));
 
@@ -89,11 +110,11 @@ router.get('/', wrap(async (req, res) => {
     q.systemsWithKills(60),
   ]);
 
-  const battles = detectBattles(kills, attackers, { gapMinutes, minKills });
+  const battles = detectBattles(kills, attackers, { gapMinutes, minKills, lullFactor });
 
   res.render('battles', {
     title: 'Battles',
-    battles: battles.map((b) => ({ ...b, url: reportUrl(b) })),
+    battles: battles.map((b) => ({ ...b, url: reportUrl(b, { gapMinutes, lullFactor }) })),
     scanned: kills.length,
     truncated,
     scanLimit: q.SCAN_LIMIT,
@@ -101,6 +122,8 @@ router.get('/', wrap(async (req, res) => {
     scanPresets: SCAN_PRESETS,
     gapMinutes,
     minKills,
+    lullFactor,
+    lullFloorMinutes: DEFAULTS.lullFloorMinutes,
     systems,
     windowLabel: SCAN_PRESETS[scanKey].label.toLowerCase(),
   });
@@ -110,7 +133,7 @@ router.get('/', wrap(async (req, res) => {
  * Rebuilds the single battle a killmail belongs to. Returns null when the
  * anchor no longer exists.
  */
-async function battleForKill(killId, gapMinutes) {
+async function battleForKill(killId, settings) {
   const anchor = await q.getKillmail(killId);
   if (!anchor) return null;
 
@@ -120,7 +143,7 @@ async function battleForKill(killId, gapMinutes) {
     to: new Date(at + ANCHOR_SCAN_MS).toISOString(),
   });
 
-  const battle = findBattleContaining(scan.kills, scan.attackers, killId, { gapMinutes });
+  const battle = findBattleContaining(scan.kills, scan.attackers, killId, settings);
   if (!battle) return null;
 
   const { kills, attackers } = await q.killmailsByIds(battle.killIds);
@@ -150,8 +173,7 @@ function parseIds(value) {
 router.get('/report', wrap(async (req, res, next) => {
   const selectedIds = parseIds(req.query.ids);
   const anchorId = Number.parseInt(req.query.kill, 10);
-  const gapMinutes = Math.min(180, Math.max(1,
-    Number.parseInt(req.query.gap, 10) || DEFAULTS.gapMinutes));
+  const { gapMinutes, lullFactor } = detectionSettings(req.query);
 
   const systemsPromise = q.systemsWithKills();
   let kills;
@@ -174,7 +196,7 @@ router.get('/report', wrap(async (req, res, next) => {
     const systems = [...new Set(kills.map((k) => k.system).filter(Boolean))];
     system = systems.length === 1 ? systems[0] : null;
   } else if (Number.isFinite(anchorId)) {
-    const found = await battleForKill(anchorId, gapMinutes);
+    const found = await battleForKill(anchorId, { gapMinutes, lullFactor });
     if (!found) return next();
 
     ({ kills, attackers } = found);
@@ -218,8 +240,8 @@ router.get('/report', wrap(async (req, res, next) => {
   // fight — a window or a hand-picked selection can easily span several.
   const contained = anchored
     ? []
-    : detectBattles(kills, attackers, { gapMinutes, minKills: 1 })
-      .map((b) => ({ ...b, url: reportUrl(b) }));
+    : detectBattles(kills, attackers, { gapMinutes, lullFactor, minKills: 1 })
+      .map((b) => ({ ...b, url: reportUrl(b, { gapMinutes, lullFactor }) }));
 
   const fromIso = new Date(from).toISOString();
   const toIso = new Date(to).toISOString();

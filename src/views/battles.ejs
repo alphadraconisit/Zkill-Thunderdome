@@ -12,20 +12,36 @@
     <label for="min">Minimum kills</label>
     <input type="number" id="min" name="min" min="1" max="50" value="<%= minKills %>">
   </div>
+  <div class="filterfield">
+    <label for="lull">Lull sensitivity</label>
+    <select id="lull" name="lull">
+      <option value="3" <%= lullFactor === 3 ? 'selected' : '' %>>Normal</option>
+      <option value="2" <%= lullFactor === 2 ? 'selected' : '' %>>Split more</option>
+      <option value="6" <%= lullFactor === 6 ? 'selected' : '' %>>Split less</option>
+      <option value="0" <%= lullFactor === 0 ? 'selected' : '' %>>Off</option>
+    </select>
+  </div>
   <input type="hidden" name="scan" value="<%= scanKey %>">
   <button class="btn" type="submit">Rescan</button>
 
   <div class="presets">
     <% Object.entries(scanPresets).forEach(([key, value]) => { %>
       <a class="pg <%= scanKey === key ? 'current' : '' %>"
-         href="<%= h.buildQuery({ gap: gapMinutes, min: minKills }, { scan: key }) %>"><%= value.label %></a>
+         href="<%= h.buildQuery({ gap: gapMinutes, min: minKills, lull: lullFactor }, { scan: key }) %>"><%= value.label %></a>
     <% }) %>
   </div>
 
   <p class="filterhint">
     Grouping the <strong><%= h.num(scanned) %></strong> killmails from the <%= windowLabel %>
     into battles: kills in the same system, within <%= gapMinutes %> minutes of each other,
-    that share at least one pilot, corp or alliance.
+    that share at least one pilot, corp or alliance, where nobody loses two ships.
+    <% if (lullFactor) { %>
+      A battle also ends when it goes quiet for more than <%= lullFactor %>&times; its own
+      pace (never below <%= lullFloorMinutes %> minutes), so a fast brawl is not stitched
+      onto the fight that follows it.
+    <% } else { %>
+      Pace-relative splitting is off &mdash; only the flat <%= gapMinutes %>-minute gap applies.
+    <% } %>
   </p>
 </form>
 

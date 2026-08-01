@@ -28,8 +28,13 @@ const { entityOf } = require('./battle');
  */
 
 const DEFAULTS = {
-  gapMinutes: 20, // longest quiet stretch that still counts as the same fight
-  minKills: 2,    // a lone killmail is a gank, not a battle
+  gapMinutes: 20,      // longest quiet stretch that still counts as the same fight
+  minKills: 2,         // a lone killmail is a gank, not a battle
+  lullFloorMinutes: 8, // never tighten the gap below this
+  // A lull this many times the battle's own rhythm ends it. Battles run 10-20
+  // minutes, so a silence of three times the normal spacing between kills is
+  // already most of a fight's length and means the field cleared.
+  lullFactor: 3,
 };
 
 function timeOf(kill) {
@@ -46,6 +51,31 @@ function isPod(kill) {
 
 function victimKey(kill) {
   return (kill.victim_name || '').toLowerCase();
+}
+
+function median(values) {
+  if (!values.length) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
+/**
+ * How long this battle may stay quiet before the next kill counts as a new one.
+ *
+ * A flat gap reads a brawl trading kills every ninety seconds the same as a slow
+ * grind, so a four-minute lull in the brawl — obviously the end of it — keeps the
+ * battle open and the next fight's opening kill gets absorbed into it. The gap is
+ * therefore scaled to the battle's own rhythm.
+ *
+ * This can only ever *tighten* the configured gap, never extend it, so it splits
+ * more finely and never merges battles that were previously separate.
+ */
+function effectiveGapMs(cluster, hardGapMs, lullFloorMs, lullFactor) {
+  if (!lullFactor) return hardGapMs; // adaptive tightening switched off
+  const rhythm = median(cluster.gaps);
+  if (rhythm == null) return hardGapMs; // a single kill has no rhythm yet
+  return Math.min(hardGapMs, Math.max(lullFloorMs, rhythm * lullFactor));
 }
 
 /**
@@ -89,6 +119,7 @@ function newCluster(kill, participants) {
     entities: new Set(),
     pilots: new Set(),
     shipLosses: new Set(),
+    gaps: [],
     start: timeOf(kill),
     end: timeOf(kill),
   };
@@ -97,12 +128,17 @@ function newCluster(kill, participants) {
 }
 
 function absorb(cluster, kill, participants) {
+  const at = timeOf(kill);
+  // Only forward steps describe the battle's pace; a pod landing on the same
+  // second as its ship is not a one-second rhythm.
+  if (cluster.kills.length && at > cluster.end) cluster.gaps.push(at - cluster.end);
+
   cluster.kills.push(kill);
   for (const e of participants.entities) cluster.entities.add(e);
   for (const p of participants.pilots) cluster.pilots.add(p);
   if (!isPod(kill)) cluster.shipLosses.add(victimKey(kill));
-  cluster.end = Math.max(cluster.end, timeOf(kill));
-  cluster.start = Math.min(cluster.start, timeOf(kill));
+  cluster.end = Math.max(cluster.end, at);
+  cluster.start = Math.min(cluster.start, at);
 }
 
 function mergeInto(target, other) {
@@ -110,6 +146,7 @@ function mergeInto(target, other) {
   for (const e of other.entities) target.entities.add(e);
   for (const p of other.pilots) target.pilots.add(p);
   for (const v of other.shipLosses) target.shipLosses.add(v);
+  target.gaps.push(...other.gaps);
   target.start = Math.min(target.start, other.start);
   target.end = Math.max(target.end, other.end);
 }
@@ -120,8 +157,9 @@ function mergeInto(target, other) {
  * @returns {Array} battles, most recent first
  */
 function detectBattles(kills, attackers, options = {}) {
-  const { gapMinutes, minKills } = { ...DEFAULTS, ...options };
+  const { gapMinutes, minKills, lullFloorMinutes, lullFactor } = { ...DEFAULTS, ...options };
   const gapMs = Math.max(1, gapMinutes) * 60000;
+  const lullFloorMs = Math.max(0, lullFloorMinutes) * 60000;
 
   const byKill = new Map();
   for (const a of attackers) {
@@ -148,12 +186,15 @@ function detectBattles(kills, attackers, options = {}) {
       const at = timeOf(kill);
       const participants = participantsOf(kill, byKill.get(kill.id) || []);
 
-      // Anything that has been quiet for longer than the gap can never be
-      // rejoined — later kills are only further away in time.
+      // Anything quiet for longer than its own gap can never be rejoined —
+      // later kills are only further away in time.
       const stillOpen = [];
       for (const cluster of open) {
-        if (at - cluster.end > gapMs) finished.push(cluster);
-        else stillOpen.push(cluster);
+        if (at - cluster.end > effectiveGapMs(cluster, gapMs, lullFloorMs, lullFactor)) {
+          finished.push(cluster);
+        } else {
+          stillOpen.push(cluster);
+        }
       }
       open = stillOpen;
 
@@ -176,8 +217,11 @@ function detectBattles(kills, attackers, options = {}) {
       }
 
       // This kill ties the matching clusters together into one battle, but only
-      // those that can merge without giving a pilot two ship losses.
-      const [primary, ...candidates] = matches;
+      // those that can merge without giving a pilot two ship losses. The kill
+      // joins whichever battle was most recently active, not whichever opened
+      // first.
+      const ordered = [...matches].sort((a, b) => b.end - a.end);
+      const [primary, ...candidates] = ordered;
       absorb(primary, kill, participants);
 
       const merged = [];

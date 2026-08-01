@@ -1014,3 +1014,13 @@ pre.code {
 .lossmark:focus-visible .loss-tile { stroke-width: 2.5; }
 .lossmark:focus { outline: none; }
 .lossmark:focus-visible { outline: 2px solid var(--link); outline-offset: 1px; }
+
+.filterfield select {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  padding: .4rem .6rem;
+  font: inherit;
+}
+.filterfield select:focus { outline: none; border-color: var(--accent-dim); }

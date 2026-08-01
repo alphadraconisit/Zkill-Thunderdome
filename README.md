@@ -191,12 +191,30 @@ battles — and needs no model, no API key and no network call. A killmail touch
 two open battles merges them, which is what happens when skirmishes converge,
 unless merging would give some pilot two ship losses.
 
-Two knobs sit above the list:
+### Lulls are judged against the battle's own pace
+
+A flat gap reads a brawl trading kills every ninety seconds the same as a slow grind,
+so a lull that obviously ended the brawl still kept it open — and the next fight's
+opening kill got absorbed into it.
+
+Each battle therefore carries its own tolerance: **the median spacing between its
+kills, times `lull`, and never below 8 minutes**, capped by the flat gap. A fight
+trading kills every four minutes closes after twelve minutes of quiet; a slow grind
+keeps the full twenty. This can only ever *tighten* the gap, never extend it, so it
+splits more finely and never merges battles that were previously separate.
+
+Three knobs sit above the list:
 
 - **Gap** (default 20 minutes) — the longest quiet stretch that still counts as the
-  same fight. Lower it to split long grinding engagements, raise it to join them.
+  same fight, whatever the pace. An upper bound on everything below.
+- **Lull sensitivity** (default "Normal", `lull=3`) — the multiplier above.
+  "Split more" (2) is stricter, "Split less" (6) more forgiving, "Off" (0) disables
+  pace-relative splitting and uses the flat gap alone.
 - **Minimum kills** (default 2) — lone killmails are ganks, not battles. Set it to 1
   to see everything.
+
+Detection settings ride along on report links, so an anchored report always rebuilds
+the same battle the list showed.
 
 Fleet size is deliberately **not** a criterion. A rule like "10v10" would discard
 both the small skirmishes and the big brawls that bracket it; the participant count

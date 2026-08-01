@@ -294,3 +294,84 @@ test('findBattleContaining returns the single battle an anchor belongs to', () =
 
   assert.equal(findBattleContaining(kills, attackers, 99999), null);
 });
+
+
+// --- lulls relative to a battle's own pace ----------------------------------
+
+test('a lull far longer than the battle\'s rhythm ends it, even inside the gap', () => {
+  // A brawl trading kills every two minutes, then fifteen minutes of quiet, then
+  // a fresh engagement. Fifteen minutes is inside the 20-minute gap, so a flat
+  // rule absorbed the new fight's opening kill into the old battle.
+  const battles = detect([
+    kill({ minute: 0, victim: 'Red 1', valliance: 'Reds', attackers: [{ name: 'Blue 1', alliance: 'Blues', damage: 100 }] }),
+    kill({ minute: 2, victim: 'Red 2', valliance: 'Reds', attackers: [{ name: 'Blue 2', alliance: 'Blues', damage: 100 }] }),
+    kill({ minute: 4, victim: 'Red 3', valliance: 'Reds', attackers: [{ name: 'Blue 1', alliance: 'Blues', damage: 100 }] }),
+    kill({ minute: 6, victim: 'Red 4', valliance: 'Reds', attackers: [{ name: 'Blue 2', alliance: 'Blues', damage: 100 }] }),
+    // ---- fifteen minutes of nothing ----
+    kill({ minute: 21, ship: 'Purifier', victim: 'Red 5', valliance: 'Reds', attackers: [{ name: 'Blue 1', alliance: 'Blues', damage: 100 }] }),
+    kill({ minute: 23, victim: 'Red 6', valliance: 'Reds', attackers: [{ name: 'Blue 1', alliance: 'Blues', damage: 100 }] }),
+  ]);
+
+  assert.equal(battles.length, 2, 'the lull separates the two engagements');
+
+  const [second, first] = battles; // newest first
+  assert.equal(first.killCount, 4);
+  assert.equal(second.killCount, 2);
+
+  // The kill after the lull opens the new battle rather than closing the old one.
+  assert.equal(second.startMs, BASE + 21 * 60000);
+  assert.equal(first.endMs, BASE + 6 * 60000);
+});
+
+test('a slow grind is not split by gaps that match its own pace', () => {
+  // Kills every twelve minutes throughout: nothing here is a lull.
+  const battles = detect([
+    kill({ minute: 0, victim: 'Red 1', valliance: 'Reds', attackers: [{ name: 'Blue 1', alliance: 'Blues', damage: 100 }] }),
+    kill({ minute: 12, victim: 'Red 2', valliance: 'Reds', attackers: [{ name: 'Blue 1', alliance: 'Blues', damage: 100 }] }),
+    kill({ minute: 24, victim: 'Red 3', valliance: 'Reds', attackers: [{ name: 'Blue 1', alliance: 'Blues', damage: 100 }] }),
+    kill({ minute: 36, victim: 'Red 4', valliance: 'Reds', attackers: [{ name: 'Blue 1', alliance: 'Blues', damage: 100 }] }),
+  ], { gapMinutes: 20 });
+
+  assert.equal(battles.length, 1, 'a steady slow pace is still one battle');
+  assert.equal(battles[0].killCount, 4);
+});
+
+test('short bursts are not split by the floor', () => {
+  // Kills 30 seconds apart, then a four-minute pause: still one skirmish,
+  // because the floor keeps the gap from collapsing to seconds.
+  const battles = detect([
+    kill({ minute: 0, victim: 'Red 1', valliance: 'Reds', attackers: [{ name: 'Blue 1', alliance: 'Blues', damage: 100 }] }),
+    kill({ minute: 0.5, victim: 'Red 2', valliance: 'Reds', attackers: [{ name: 'Blue 1', alliance: 'Blues', damage: 100 }] }),
+    kill({ minute: 1, victim: 'Red 3', valliance: 'Reds', attackers: [{ name: 'Blue 1', alliance: 'Blues', damage: 100 }] }),
+    kill({ minute: 5, victim: 'Red 4', valliance: 'Reds', attackers: [{ name: 'Blue 1', alliance: 'Blues', damage: 100 }] }),
+  ]);
+
+  assert.equal(battles.length, 1);
+  assert.equal(battles[0].killCount, 4);
+});
+
+test('the adaptive lull can only tighten the gap, never extend it', () => {
+  // Kills 25 minutes apart are beyond the 20-minute gap however steady the pace.
+  const battles = detect([
+    kill({ minute: 0, victim: 'Red 1', valliance: 'Reds', attackers: [{ name: 'Blue 1', alliance: 'Blues', damage: 100 }] }),
+    kill({ minute: 25, victim: 'Red 2', valliance: 'Reds', attackers: [{ name: 'Blue 1', alliance: 'Blues', damage: 100 }] }),
+    kill({ minute: 50, victim: 'Red 3', valliance: 'Reds', attackers: [{ name: 'Blue 1', alliance: 'Blues', damage: 100 }] }),
+  ], { minKills: 1 });
+
+  assert.equal(battles.length, 3, 'the hard gap still bounds everything');
+});
+
+test('a kill joins the most recently active battle, not the oldest', () => {
+  const battles = detect([
+    // Two fights open in the same system with no participants in common.
+    kill({ minute: 0, victim: 'Red 1', valliance: 'Reds', attackers: [{ name: 'Blue 1', alliance: 'Blues', damage: 100 }] }),
+    kill({ minute: 1, victim: 'Green 1', valliance: 'Greens', attackers: [{ name: 'Yellow 1', alliance: 'Yellows', damage: 100 }] }),
+    kill({ minute: 2, victim: 'Green 2', valliance: 'Greens', attackers: [{ name: 'Yellow 1', alliance: 'Yellows', damage: 100 }] }),
+    // A Blues pilot dies: this belongs to the Reds/Blues fight.
+    kill({ minute: 3, victim: 'Blue 1', valliance: 'Blues', attackers: [{ name: 'Red 9', alliance: 'Reds', damage: 100 }] }),
+  ]);
+
+  assert.equal(battles.length, 2);
+  const redsBlues = battles.find((b) => b.sides.some((s) => s.label === 'Reds'));
+  assert.equal(redsBlues.killCount, 2, 'the Blues loss joined the Reds/Blues fight');
+});
