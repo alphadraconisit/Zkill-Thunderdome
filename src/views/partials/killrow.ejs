@@ -1,0 +1,42 @@
+<%
+  // `highlight` is optional: 'kill' tints the row green, 'loss' tints it red.
+  const tone = typeof highlight === 'undefined' ? null : highlight;
+  const img = esi.shipImage(k.ship, 64);
+%>
+<a class="killrow <%= tone ? 'tone-' + tone : '' %>" href="/kill/<%= k.id %>">
+  <span class="killrow-ship">
+    <% if (img) { %>
+      <img src="<%= img %>" alt="<%= k.ship %>" loading="lazy" width="56" height="56">
+    <% } else { %>
+      <span class="shipfallback" style="background:<%= h.tintFor(k.ship) %>"><%= h.initials(k.ship) %></span>
+    <% } %>
+  </span>
+
+  <span class="killrow-main">
+    <span class="killrow-line1">
+      <span class="ship-name"><%= k.ship %></span>
+      <span class="sep">&bull;</span>
+      <span class="victim-name"><%= k.victim_name %></span>
+    </span>
+    <span class="killrow-line2">
+      <%= k.victim_corp || 'Unknown corp' %><% if (k.victim_alliance) { %>
+        <span class="sep">/</span> <%= k.victim_alliance %>
+      <% } %>
+    </span>
+  </span>
+
+  <span class="killrow-system">
+    <span class="sec <%= h.secClass(k.security) %>"><%= h.secText(k.security) %></span>
+    <span class="system-name"><%= k.system || 'Unknown' %></span>
+  </span>
+
+  <span class="killrow-meta">
+    <span class="pill" title="Pilots involved"><%= k.attacker_count %> involved</span>
+    <span class="dim" title="Damage taken"><%= h.num(k.damage_taken) %> dmg</span>
+  </span>
+
+  <span class="killrow-time">
+    <span class="abs"><%= h.formatDate(k.killed_at) %></span>
+    <span class="dim"><%= h.timeAgo(k.killed_at) %></span>
+  </span>
+</a>

@@ -1,0 +1,102 @@
+<%- include('partials/header') %>
+
+<div class="columns">
+  <div class="col-main">
+    <section class="panel">
+      <h1 class="panel-title">Submit killmail</h1>
+      <p class="dim">
+        Paste the killmail text exactly as the server produces it. Several mails can be
+        pasted at once — each one starts with its own <code>YYYY.MM.DD HH:MM:SS</code> line.
+        Re-pasting the same mail is safe; duplicates are ignored.
+      </p>
+
+      <% if (result) { %>
+        <% if (result.created.length) { %>
+          <div class="alert success">
+            Added <%= result.created.length %> killmail<%= result.created.length === 1 ? '' : 's' %>:
+            <ul>
+              <% result.created.forEach((c) => { %>
+                <li><a href="/kill/<%= c.id %>"><%= c.victim %> &mdash; <%= c.ship %><%= c.system ? ' in ' + c.system : '' %></a></li>
+              <% }) %>
+            </ul>
+          </div>
+        <% } %>
+        <% if (result.duplicates) { %>
+          <div class="alert info"><%= result.duplicates %> duplicate<%= result.duplicates === 1 ? '' : 's' %> skipped.</div>
+        <% } %>
+        <% if (result.errors.length) { %>
+          <div class="alert error">
+            <%= result.errors.length %> block<%= result.errors.length === 1 ? '' : 's' %> could not be parsed:
+            <ul>
+              <% result.errors.forEach((e) => { %>
+                <li><%= e.message %><% if (e.excerpt) { %> <span class="dim">(&ldquo;<%= e.excerpt %>&hellip;&rdquo;)</span><% } %></li>
+              <% }) %>
+            </ul>
+          </div>
+        <% } %>
+      <% } %>
+
+      <form method="post" action="/admin/submit" class="stackform">
+        <label for="killmail">Killmail text</label>
+        <textarea id="killmail" name="killmail" rows="20" spellcheck="false"
+                  placeholder="2026.06.27 15:33:15&#10;&#10;Victim: DraconisBeta&#10;Corp: Goat Trading Institute&#10;..."><%= text %></textarea>
+        <div class="formrow">
+          <button class="btn" type="submit">Add killmail</button>
+          <span class="dim"><%= h.num(summary.killmails) %> on the board</span>
+        </div>
+      </form>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel-title">Recently added</h2>
+      <table class="datatable">
+        <thead><tr><th>Killmail</th><th>When</th><th></th></tr></thead>
+        <tbody>
+          <% if (!recent.length) { %><tr><td colspan="3" class="empty">Nothing yet.</td></tr><% } %>
+          <% recent.forEach((k) => { %>
+            <tr>
+              <td><a href="/kill/<%= k.id %>"><%= k.victim_name %> &mdash; <%= k.ship %></a>
+                  <span class="dim"><%= k.system || '' %></span></td>
+              <td class="dim"><%= h.formatDate(k.killed_at) %></td>
+              <td class="num">
+                <form action="/admin/delete/<%= k.id %>" method="post"
+                      onsubmit="return confirm('Delete this killmail permanently?')">
+                  <button class="btn tiny danger" type="submit">Delete</button>
+                </form>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </section>
+  </div>
+
+  <aside class="col-side">
+    <section class="panel">
+      <h2 class="panel-title">Write API</h2>
+      <% if (apiEnabled) { %>
+        <p class="dim">Post killmails straight from the server with your <code>API_KEY</code>:</p>
+        <pre class="code">curl -X POST <%= '$' %>BOARD_URL/api/killmails \
+  -H "Authorization: Bearer <%= '$' %>API_KEY" \
+  -H "Content-Type: text/plain" \
+  --data-binary @killmail.txt</pre>
+      <% } else { %>
+        <p class="dim">Set <code>API_KEY</code> in the environment to enable automated submission.</p>
+      <% } %>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel-title">Ship artwork</h2>
+      <% if (esiEnabled) { %>
+        <p class="dim">Ship names are matched against EVE type IDs so renders show up. Run this after adding ships that were missing art.</p>
+        <form action="/admin/resolve-images" method="post">
+          <button class="btn ghost" type="submit">Re-resolve ship images</button>
+        </form>
+      <% } else { %>
+        <p class="dim">Image lookup is disabled (<code>ESI_LOOKUP=0</code>). Placeholder tiles are used instead.</p>
+      <% } %>
+    </section>
+  </aside>
+</div>
+
+<%- include('partials/footer') %>

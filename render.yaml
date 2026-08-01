@@ -1,0 +1,33 @@
+# Render blueprint — create the service with "New > Blueprint" and point it at this repo.
+services:
+  - type: web
+    name: thunderdome-killboard
+    runtime: node
+    plan: starter # a persistent disk requires a paid instance type
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+
+    # The SQLite database lives on this disk so killmails survive deploys.
+    disk:
+      name: killboard-data
+      mountPath: /var/data
+      sizeGB: 1
+
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATA_DIR
+        value: /var/data
+      - key: BOARD_NAME
+        value: Thunderdome
+      - key: SESSION_SECRET
+        generateValue: true
+      # Set these in the Render dashboard; they are deliberately not stored here.
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: API_KEY
+        sync: false
+      - key: SITE_PASSWORD
+        sync: false

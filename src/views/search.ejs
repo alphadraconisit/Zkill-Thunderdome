@@ -1,0 +1,22 @@
+<%- include('partials/header') %>
+
+<section class="panel">
+  <h1 class="panel-title">Search</h1>
+
+  <% if (!term || term.length < 2) { %>
+    <p class="empty">Type at least two characters.</p>
+  <% } else if (!results.length) { %>
+    <p class="empty">Nothing matched &ldquo;<%= term %>&rdquo;.</p>
+  <% } else { %>
+    <ul class="searchresults">
+      <% results.forEach((r) => { %>
+        <li>
+          <span class="kindtag kind-<%= r.kind %>"><%= r.kind %></span>
+          <a href="<%= h.entityUrl(r.kind, r.label) %>"><%= r.label %></a>
+        </li>
+      <% }) %>
+    </ul>
+  <% } %>
+</section>
+
+<%- include('partials/footer') %>

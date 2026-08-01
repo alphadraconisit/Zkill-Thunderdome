@@ -1,0 +1,37 @@
+<section class="panel itemlist tone-<%= tone %>">
+  <h2 class="panel-title">
+    <%= heading %> <span class="dim">(<%= items.length %>)</span>
+  </h2>
+
+  <% if (!items.length) { %>
+    <p class="empty">Nothing <%= tone %>.</p>
+  <% } else { %>
+    <%
+      // Group by fitting location so cargo does not drown the fitted modules.
+      const groups = new Map();
+      for (const item of items) {
+        const key = item.location || 'Fitted / Hull';
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(item);
+      }
+      const ordered = [...groups.entries()].sort((a, b) => (a[0] === 'Fitted / Hull' ? -1 : b[0] === 'Fitted / Hull' ? 1 : a[0].localeCompare(b[0])));
+    %>
+    <% ordered.forEach(([location, group]) => { %>
+      <h3 class="itemgroup"><%= location %> <span class="dim">(<%= group.length %>)</span></h3>
+      <ul class="items">
+        <% group.forEach((item) => { %>
+          <% const icon = esi.itemIcon(item.name, 32); %>
+          <li>
+            <% if (icon) { %>
+              <img class="itemicon" src="<%= icon %>" alt="" loading="lazy" width="24" height="24">
+            <% } else { %>
+              <span class="itemicon placeholder"></span>
+            <% } %>
+            <span class="itemname"><%= item.name %></span>
+            <% if (item.qty > 1) { %><span class="itemqty">&times;<%= h.num(item.qty) %></span><% } %>
+          </li>
+        <% }) %>
+      </ul>
+    <% }) %>
+  <% } %>
+</section>

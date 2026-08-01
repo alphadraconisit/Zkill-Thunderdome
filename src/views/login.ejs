@@ -1,0 +1,17 @@
+<%- include('partials/header') %>
+
+<div class="panel loginpanel">
+  <h1>Sign in</h1>
+  <p class="dim">This killboard is private. Enter the board password to continue.</p>
+
+  <% if (error) { %><p class="alert error"><%= error %></p><% } %>
+
+  <form method="post" action="/login" class="stackform">
+    <input type="hidden" name="next" value="<%= next %>">
+    <label for="password">Password</label>
+    <input id="password" type="password" name="password" autocomplete="current-password" required autofocus>
+    <button class="btn" type="submit">Sign in</button>
+  </form>
+</div>
+
+<%- include('partials/footer') %>

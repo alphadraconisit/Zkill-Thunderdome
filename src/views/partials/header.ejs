@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title><%= title ? `${title} — ${boardName}` : boardName %></title>
+<link rel="stylesheet" href="/public/css/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>&#x1F480;</text></svg>">
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="/">
+      <span class="brand-mark">&#9868;</span>
+      <span class="brand-name"><%= boardName %></span>
+      <span class="brand-sub">killboard</span>
+    </a>
+
+    <nav class="mainnav">
+      <a href="/" class="<%= path === '/' ? 'active' : '' %>">Home</a>
+      <a href="/kills" class="<%= path === '/kills' ? 'active' : '' %>">Killmails</a>
+      <% if (isAdmin) { %><a href="/admin" class="<%= path.startsWith('/admin') ? 'active' : '' %>">Submit</a><% } %>
+    </nav>
+
+    <form class="searchbox" action="/search" method="get" role="search">
+      <input type="search" name="q" placeholder="Pilot, corp, alliance, system, ship&hellip;"
+             value="<%= typeof term !== 'undefined' ? term : '' %>" aria-label="Search" autocomplete="off">
+      <button type="submit" aria-label="Search">&#9906;</button>
+    </form>
+
+    <div class="topbar-actions">
+      <% if (isAdmin) { %>
+        <form action="/logout" method="post"><button class="linkish" type="submit">Sign out</button></form>
+      <% } else { %>
+        <a class="linkish" href="/login">Sign in</a>
+      <% } %>
+    </div>
+  </div>
+</header>
+<main class="wrap">

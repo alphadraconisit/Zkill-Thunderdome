@@ -1,0 +1,24 @@
+<% if (feed.pages > 1) { %>
+  <% const base = typeof baseQuery === 'undefined' ? {} : baseQuery; %>
+  <nav class="pagination" aria-label="Pagination">
+    <a class="pg <%= feed.page <= 1 ? 'disabled' : '' %>"
+       href="<%= h.buildQuery(base, { page: Math.max(1, feed.page - 1) }) %>">&larr; Prev</a>
+
+    <% if (feed.page > 3) { %>
+      <a class="pg" href="<%= h.buildQuery(base, { page: 1 }) %>">1</a>
+      <span class="pg-gap">&hellip;</span>
+    <% } %>
+
+    <% h.pageRange(feed.page, feed.pages).forEach((p) => { %>
+      <a class="pg <%= p === feed.page ? 'current' : '' %>" href="<%= h.buildQuery(base, { page: p }) %>"><%= p %></a>
+    <% }) %>
+
+    <% if (feed.page < feed.pages - 2) { %>
+      <span class="pg-gap">&hellip;</span>
+      <a class="pg" href="<%= h.buildQuery(base, { page: feed.pages }) %>"><%= feed.pages %></a>
+    <% } %>
+
+    <a class="pg <%= feed.page >= feed.pages ? 'disabled' : '' %>"
+       href="<%= h.buildQuery(base, { page: Math.min(feed.pages, feed.page + 1) }) %>">Next &rarr;</a>
+  </nav>
+<% } %>

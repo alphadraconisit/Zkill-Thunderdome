@@ -1,0 +1,14 @@
+<%- include('partials/header') %>
+
+<section class="panel">
+  <h1 class="panel-title">All killmails <span class="dim">(<%= h.num(feed.total) %>)</span></h1>
+  <div class="killlist">
+    <% if (!feed.rows.length) { %><p class="empty">Nothing recorded yet.</p><% } %>
+    <% feed.rows.forEach((k) => { %>
+      <%- include('partials/killrow', { k }) %>
+    <% }) %>
+  </div>
+  <%- include('partials/pagination', { feed, baseQuery: {} }) %>
+</section>
+
+<%- include('partials/footer') %>

@@ -1,0 +1,69 @@
+<%- include('partials/header') %>
+
+<% const sideQuery = (s) => h.buildQuery({}, { side: s === 'all' ? null : s }); %>
+
+<section class="entityhead">
+  <span class="entity-avatar" style="background: <%= h.tintFor(name) %>"><%= h.initials(name) %></span>
+  <div class="entityhead-info">
+    <span class="kindlabel"><%= kindLabel %></span>
+    <h1><%= name %></h1>
+    <div class="entity-stats">
+      <% if (kind === 'system') { %>
+        <span class="stat-chip"><b><%= h.num(stats.total) %></b> killmails</span>
+      <% } else { %>
+        <span class="stat-chip good"><b><%= h.num(stats.kills) %></b> kills</span>
+        <span class="stat-chip bad"><b><%= h.num(stats.losses) %></b> losses</span>
+        <span class="stat-chip"><b><%= stats.efficiency == null ? '—' : stats.efficiency + '%' %></b> efficiency</span>
+      <% } %>
+    </div>
+  </div>
+</section>
+
+<div class="columns">
+  <div class="col-main">
+    <section class="panel">
+      <div class="panel-head">
+        <h2 class="panel-title">Killmails</h2>
+        <% if (kind !== 'system') { %>
+          <nav class="tabs">
+            <a class="<%= side === 'all' ? 'active' : '' %>" href="<%= sideQuery('all') %>">All</a>
+            <a class="<%= side === 'kills' ? 'active' : '' %>" href="<%= sideQuery('kills') %>">Kills</a>
+            <a class="<%= side === 'losses' ? 'active' : '' %>" href="<%= sideQuery('losses') %>">Losses</a>
+          </nav>
+        <% } %>
+      </div>
+
+      <div class="killlist">
+        <% if (!feed.rows.length) { %><p class="empty">No killmails match this view.</p><% } %>
+        <% feed.rows.forEach((k) => { %>
+          <%
+            // Tint by whether this entity was the one who died.
+            let tone = null;
+            if (kind === 'character') tone = k.victim_name.toLowerCase() === name.toLowerCase() ? 'loss' : 'kill';
+            else if (kind === 'corporation') tone = (k.victim_corp || '').toLowerCase() === name.toLowerCase() ? 'loss' : 'kill';
+            else if (kind === 'alliance') tone = (k.victim_alliance || '').toLowerCase() === name.toLowerCase() ? 'loss' : 'kill';
+            else if (kind === 'ship') tone = k.ship.toLowerCase() === name.toLowerCase() ? 'loss' : 'kill';
+          %>
+          <%- include('partials/killrow', { k, highlight: tone }) %>
+        <% }) %>
+      </div>
+
+      <%- include('partials/pagination', { feed, baseQuery: side === 'all' ? {} : { side } }) %>
+    </section>
+  </div>
+
+  <aside class="col-side">
+    <% if (kind !== 'system') { %>
+      <%- include('partials/toplist', { heading: 'Ships flown on kills', rows: topShips, kind: 'ship' }) %>
+      <%- include('partials/toplist', { heading: 'Ships lost', rows: lostShips, kind: 'ship' }) %>
+      <%- include('partials/toplist', { heading: 'Fought alongside', rows: topCorps, kind: 'corporation' }) %>
+    <% } else { %>
+      <section class="panel">
+        <h2 class="panel-title">System</h2>
+        <p class="dim">Every killmail recorded in <%= name %>.</p>
+      </section>
+    <% } %>
+  </aside>
+</div>
+
+<%- include('partials/footer') %>

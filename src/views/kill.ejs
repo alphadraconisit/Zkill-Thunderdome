@@ -1,0 +1,125 @@
+<%- include('partials/header') %>
+
+<% const render = esi.shipImage(kill.ship, 512); %>
+<% const topDamage = Math.max(1, ...kill.attackers.map((a) => a.damage || 0)); %>
+
+<article class="killpage">
+  <div class="killhead">
+    <div class="killhead-ship">
+      <% if (render) { %>
+        <img src="<%= render %>" alt="<%= kill.ship %>" width="256" height="256">
+      <% } else { %>
+        <span class="shipfallback big" style="background:<%= h.tintFor(kill.ship) %>"><%= h.initials(kill.ship) %></span>
+      <% } %>
+    </div>
+
+    <div class="killhead-info">
+      <h1>
+        <a href="/ship/<%= encodeURIComponent(kill.ship) %>"><%= kill.ship %></a>
+        <span class="dim">destroyed</span>
+      </h1>
+
+      <dl class="kv">
+        <dt>Victim</dt>
+        <dd><a href="/character/<%= encodeURIComponent(kill.victim_name) %>"><%= kill.victim_name %></a></dd>
+
+        <dt>Corporation</dt>
+        <dd>
+          <% if (kill.victim_corp) { %>
+            <a href="/corporation/<%= encodeURIComponent(kill.victim_corp) %>"><%= kill.victim_corp %></a>
+          <% } else { %><span class="dim">Unknown</span><% } %>
+        </dd>
+
+        <dt>Alliance</dt>
+        <dd>
+          <% if (kill.victim_alliance) { %>
+            <a href="/alliance/<%= encodeURIComponent(kill.victim_alliance) %>"><%= kill.victim_alliance %></a>
+          <% } else { %><span class="dim">None</span><% } %>
+        </dd>
+
+        <% if (kill.victim_faction) { %>
+          <dt>Faction</dt><dd><%= kill.victim_faction %></dd>
+        <% } %>
+
+        <dt>System</dt>
+        <dd>
+          <a href="/system/<%= encodeURIComponent(kill.system || 'Unknown') %>"><%= kill.system || 'Unknown' %></a>
+          <span class="sec <%= h.secClass(kill.security) %>"><%= h.secText(kill.security) %></span>
+        </dd>
+
+        <dt>Time</dt>
+        <dd><%= h.formatDateLong(kill.killed_at) %> <span class="dim">(<%= h.timeAgo(kill.killed_at) %>)</span></dd>
+
+        <dt>Damage taken</dt>
+        <dd><%= h.num(kill.damage_taken) %></dd>
+
+        <dt>Final blow</dt>
+        <dd>
+          <% if (kill.final_blow) { %>
+            <a href="/character/<%= encodeURIComponent(kill.final_blow) %>"><%= kill.final_blow %></a>
+          <% } else { %><span class="dim">Unknown</span><% } %>
+        </dd>
+      </dl>
+
+      <div class="killhead-actions">
+        <a class="btn ghost" href="/kill/<%= kill.id %>/raw">Raw killmail</a>
+        <% if (isAdmin) { %>
+          <form action="/admin/delete/<%= kill.id %>" method="post"
+                onsubmit="return confirm('Delete this killmail permanently?')">
+            <button class="btn danger" type="submit">Delete</button>
+          </form>
+        <% } %>
+      </div>
+    </div>
+  </div>
+
+  <section class="panel">
+    <h2 class="panel-title">Involved parties <span class="dim">(<%= kill.attackers.length %>)</span></h2>
+    <div class="table-scroll">
+      <table class="datatable attackers">
+        <thead>
+          <tr>
+            <th>Pilot</th>
+            <th>Corporation</th>
+            <th>Alliance</th>
+            <th>Ship</th>
+            <th>Weapon</th>
+            <th class="num">Damage</th>
+            <th class="num">%</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% kill.attackers.forEach((a) => { %>
+            <tr class="<%= a.final_blow ? 'final-blow' : '' %>">
+              <td>
+                <a href="/character/<%= encodeURIComponent(a.name) %>"><%= a.name %></a>
+                <% if (a.security != null) { %>
+                  <span class="psec <%= h.pilotSecClass(a.security) %>"><%= Number(a.security).toFixed(1) %></span>
+                <% } %>
+                <% if (a.final_blow) { %><span class="badge fb">final blow</span><% } %>
+              </td>
+              <td><% if (a.corp) { %><a href="/corporation/<%= encodeURIComponent(a.corp) %>"><%= a.corp %></a><% } else { %><span class="dim">—</span><% } %></td>
+              <td><% if (a.alliance) { %><a href="/alliance/<%= encodeURIComponent(a.alliance) %>"><%= a.alliance %></a><% } else { %><span class="dim">—</span><% } %></td>
+              <td><% if (a.ship) { %><a href="/ship/<%= encodeURIComponent(a.ship) %>"><%= a.ship %></a><% } else { %><span class="dim">—</span><% } %></td>
+              <td class="dim"><%= a.weapon || '—' %></td>
+              <td class="num">
+                <span class="dmgbar"><span style="width: <%= Math.round(((a.damage || 0) / topDamage) * 100) %>%"></span></span>
+                <%= h.num(a.damage) %>
+              </td>
+              <td class="num dim">
+                <%= kill.total_damage ? Math.round(((a.damage || 0) / kill.total_damage) * 100) : 0 %>%
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="itemgrid">
+    <%- include('partials/itemlist', { heading: 'Destroyed items', items: kill.destroyedItems, tone: 'destroyed' }) %>
+    <%- include('partials/itemlist', { heading: 'Dropped items', items: kill.droppedItems, tone: 'dropped' }) %>
+  </div>
+</article>
+
+<%- include('partials/footer') %>

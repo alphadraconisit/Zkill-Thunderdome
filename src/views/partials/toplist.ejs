@@ -1,0 +1,18 @@
+<section class="panel toplist">
+  <h2 class="panel-title"><%= heading %></h2>
+  <% if (!rows.length) { %>
+    <p class="empty">Nothing yet.</p>
+  <% } else { %>
+    <ol class="toplist-rows">
+      <% const max = rows[0].n || 1; %>
+      <% rows.forEach((row, i) => { %>
+        <li>
+          <span class="rank"><%= i + 1 %></span>
+          <a class="label" href="<%= h.entityUrl(kind, row.label) %>" title="<%= row.label %>"><%= row.label %></a>
+          <span class="bar"><span style="width: <%= Math.max(4, Math.round((row.n / max) * 100)) %>%"></span></span>
+          <span class="count"><%= row.n %></span>
+        </li>
+      <% }) %>
+    </ol>
+  <% } %>
+</section>

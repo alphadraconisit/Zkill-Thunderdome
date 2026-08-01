@@ -1,0 +1,48 @@
+<%- include('partials/header') %>
+
+<section class="hero">
+  <div class="hero-stats">
+    <div class="stat"><span class="stat-n"><%= h.num(summary.killmails) %></span><span class="stat-l">killmails</span></div>
+    <div class="stat"><span class="stat-n"><%= h.num(summary.last7) %></span><span class="stat-l">last 7 days</span></div>
+    <div class="stat"><span class="stat-n"><%= h.num(summary.pilots) %></span><span class="stat-l">pilots seen</span></div>
+    <div class="stat"><span class="stat-n"><%= h.num(summary.involved) %></span><span class="stat-l">total involved</span></div>
+  </div>
+
+  <div class="sparkline" title="Kills per day, last 30 days">
+    <% const peak = Math.max(1, ...activity.map((a) => a.n)); %>
+    <% activity.forEach((a) => { %>
+      <span class="spark-bar" style="height: <%= Math.max(3, Math.round((a.n / peak) * 100)) %>%"
+            title="<%= a.day %>: <%= a.n %>"></span>
+    <% }) %>
+  </div>
+</section>
+
+<div class="columns">
+  <div class="col-main">
+    <section class="panel">
+      <h2 class="panel-title">Latest killmails</h2>
+      <div class="killlist">
+        <% if (!feed.rows.length) { %>
+          <p class="empty">
+            No killmails yet.
+            <% if (isAdmin) { %><a href="/admin">Paste the first one &rarr;</a><% } %>
+          </p>
+        <% } %>
+        <% feed.rows.forEach((k) => { %>
+          <%- include('partials/killrow', { k }) %>
+        <% }) %>
+      </div>
+      <%- include('partials/pagination', { feed, baseQuery: {} }) %>
+    </section>
+  </div>
+
+  <aside class="col-side">
+    <%- include('partials/toplist', { heading: `Top pilots (${windowLabel})`, rows: topPilots, kind: 'character' }) %>
+    <%- include('partials/toplist', { heading: `Top corporations (${windowLabel})`, rows: topCorps, kind: 'corporation' }) %>
+    <%- include('partials/toplist', { heading: `Top alliances (${windowLabel})`, rows: topAlliances, kind: 'alliance' }) %>
+    <%- include('partials/toplist', { heading: `Hot systems (${windowLabel})`, rows: topSystems, kind: 'system' }) %>
+    <%- include('partials/toplist', { heading: `Most flown (${windowLabel})`, rows: topShips, kind: 'ship' }) %>
+  </aside>
+</div>
+
+<%- include('partials/footer') %>

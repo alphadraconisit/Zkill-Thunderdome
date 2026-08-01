@@ -1,0 +1,115 @@
+2026.06.27 15:33:15
+
+Victim: DraconisBeta
+Corp: Goat Trading Institute
+Alliance: OnlyAlts.
+Faction: Unknown
+Destroyed: Crane
+System: Ahbazon
+Security: 0.4
+Damage Taken: 5787
+
+Involved parties:
+
+Name: EF Zeta
+Security: -10.0
+Corp: Endless-Fury
+Alliance: Ahbazon-Prime
+Faction: None
+Ship: Machariel
+Weapon: Machariel
+Damage Done: 2763
+
+Name: EF Beta
+Security: -10.0
+Corp: Endless-Fury
+Alliance: Ahbazon-Prime
+Faction: None
+Ship: Machariel
+Weapon: Machariel
+Damage Done: 1192
+
+Name: EF Alpha
+Security: -10.0
+Corp: Endless-Fury
+Alliance: Ahbazon-Prime
+Faction: None
+Ship: Machariel
+Weapon: Machariel
+Damage Done: 1148
+
+Name: EF Sigma
+Security: -10.0
+Corp: Endless-Fury
+Alliance: Ahbazon-Prime
+Faction: None
+Ship: Machariel
+Weapon: Machariel
+Damage Done: 375
+
+Name: EF Delta (laid the final blow)
+Security: -10.00
+Corp: Endless-Fury
+Alliance: Ahbazon-Prime
+Faction: None
+Ship: Machariel
+Weapon: Imperial Navy Large EMP Smartbomb
+Damage Done: 309
+
+Destroyed items:
+
+Rocket Launcher II 
+Gyrostabilizer II, Qty: 4 (Cargo)
+Sisters Combat Scanner Probe, Qty: 16 (Cargo)
+Multispectrum Shield Hardener II 
+5MN Y-T8 Compact Microwarpdrive (Cargo)
+EM Shield Hardener II 
+Large Micro Jump Drive, Qty: 2 (Cargo)
+Damage Control II, Qty: 3 (Cargo)
+Tracking Enhancer II, Qty: 4 (Cargo)
+Expanded Probe Launcher I (Cargo)
+500MN Y-T8 Compact Microwarpdrive, Qty: 2 (Cargo)
+Small Shield Extender II 
+50MN Y-T8 Compact Microwarpdrive 
+Light Neutron Blaster II, Qty: 5 (Cargo)
+Small Ancillary Armor Repairer (Cargo)
+Heavy F-RX Compact Capacitor Booster, Qty: 2 (Cargo)
+Expanded Cargohold II 
+Dual 650mm Repeating Cannon II, Qty: 8 (Cargo)
+Warp Scrambler II (Cargo)
+Medium Cargohold Optimization II 
+Small Auxiliary Nano Pump I (Cargo)
+Nanite Repair Paste, Qty: 658 (Cargo)
+Medium Low Friction Nozzle Joints II 
+Covert Ops Cloaking Device II 
+Magnetic Field Stabilizer II, Qty: 2 (Cargo)
+Valkyrie II, Qty: 10 (Cargo)
+Hornet EC-300, Qty: 10 (Cargo)
+Republic Fleet EMP L, Qty: 3000 (Cargo)
+Heavy Energy Neutralizer II, Qty: 4 (Cargo)
+Small Ancillary Current Router I (Cargo)
+
+Dropped items:
+
+Hecate (Cargo)
+Large Projectile Metastasis Adjuster II, Qty: 4 (Cargo)
+Null S, Qty: 1000 (Cargo)
+Expanded Cargohold II 
+Small F-RX Compact Capacitor Booster (Cargo)
+Multispectrum Energized Membrane II, Qty: 2 (Cargo)
+Caldari Navy Antimatter Charge S, Qty: 1000 (Cargo)
+Large Explosive Armor Reinforcer II, Qty: 2 (Cargo)
+Republic Fleet Fusion L, Qty: 3000 (Cargo)
+Large Ancillary Armor Repairer, Qty: 2 (Cargo)
+Oxygen Isotopes, Qty: 100000 (Cargo)
+Barrage L, Qty: 3000 (Cargo)
+Navy Cap Booster 400, Qty: 11 (Cargo)
+Dual 650mm Repeating Cannon II, Qty: 4 (Cargo)
+Warp Scrambler II, Qty: 2 (Cargo)
+Stasis Webifier II, Qty: 3 (Cargo)
+Hail L, Qty: 3000 (Cargo)
+Republic Fleet Depleted Uranium L, Qty: 3000 (Cargo)
+Void S, Qty: 1000 (Cargo)
+Navy Cap Booster 3200, Qty: 10 (Cargo)
+Small Hybrid Metastasis Adjuster II (Cargo)
+Warrior II, Qty: 10 (Cargo)
