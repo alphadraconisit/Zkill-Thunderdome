@@ -200,7 +200,8 @@ test('a battle report aggregates the window into sides', async () => {
   assert.match(html, /Ahbazon-Prime/, 'the attacking alliance is a side');
   assert.match(html, /OnlyAlts\./, 'the victim alliance is a side');
   assert.match(html, /EF Zeta/);
-  assert.match(html, /2,763/, 'per-pilot damage is listed');
+  assert.match(html, /2\.8k/, 'per-pilot damage is listed, compactly');
+  assert.match(html, /recvd/, 'damage received is listed alongside');
   assert.doesNotMatch(html, /ISK/, 'battle reports carry no ISK figures');
 });
 

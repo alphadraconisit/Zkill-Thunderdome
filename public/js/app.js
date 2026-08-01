@@ -12,7 +12,10 @@
     var name = img.alt || '?';
     var span = document.createElement('span');
     span.className = img.closest('.killhead-ship') ? 'shipfallback big' : 'shipfallback';
-    if (img.classList.contains('itemicon')) {
+    if (img.closest('.crew-ship-icon')) {
+      span.className = 'crew-ship-blank';
+      span.textContent = '';
+    } else if (img.classList.contains('itemicon')) {
       span.className = 'itemicon placeholder';
       span.textContent = '';
     } else {
@@ -28,6 +31,28 @@
     for (var i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
     return 'hsl(' + (hash % 360) + ' 45% 32%)';
   }
+
+  // Per-side pilot filter. Rows carry their searchable text in data-crew, so
+  // this never has to touch or rebuild the markup.
+  document.querySelectorAll('[data-side]').forEach(function (side) {
+    var input = side.querySelector('[data-side-filter]');
+    var rows = side.querySelectorAll('.crewrow');
+    var empty = side.querySelector('.crew-empty');
+    if (!input || !rows.length) return;
+
+    input.addEventListener('input', function () {
+      var term = input.value.trim().toLowerCase();
+      var shown = 0;
+
+      rows.forEach(function (row) {
+        var match = !term || (row.dataset.crew || '').indexOf(term) !== -1;
+        row.hidden = !match;
+        if (match) shown++;
+      });
+
+      if (empty) empty.hidden = shown !== 0;
+    });
+  });
 
   // Crosshair + tooltip for the damage timeline. The chart itself is already
   // drawn server-side; this only adds the read-off layer.

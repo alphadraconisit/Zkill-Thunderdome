@@ -19,6 +19,15 @@ function formatDateLong(iso) {
   return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`;
 }
 
+/** HH:MM in EVE time, for the battle header's time range. */
+function clock(iso) {
+  if (!iso) return '';
+  const d = new Date(iso.includes('T') ? iso : `${iso.replace(' ', 'T')}Z`);
+  if (Number.isNaN(d.getTime())) return '';
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
+}
+
 function timeAgo(iso) {
   if (!iso) return '';
   const then = new Date(iso.includes('T') ? iso : `${iso.replace(' ', 'T')}Z`).getTime();
@@ -113,7 +122,7 @@ function seriesColor(i) {
 }
 
 module.exports = {
-  formatDate, formatDateLong, timeAgo, num,
+  formatDate, formatDateLong, timeAgo, num, clock,
   chartNumber: compactNumber, seriesColor, formatDuration,
   secClass, secText, pilotSecClass,
   entityUrl, tintFor, initials, pageRange, buildQuery,
