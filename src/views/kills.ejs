@@ -1,13 +1,56 @@
 <%- include('partials/header') %>
 
 <section class="panel">
-  <h1 class="panel-title">All killmails <span class="dim">(<%= h.num(feed.total) %>)</span></h1>
-  <div class="killlist">
-    <% if (!feed.rows.length) { %><p class="empty">Nothing recorded yet.</p><% } %>
-    <% feed.rows.forEach((k) => { %>
-      <%- include('partials/killrow', { k }) %>
-    <% }) %>
+  <div class="panel-head">
+    <h1 class="panel-title">All killmails <span class="dim">(<%= h.num(feed.total) %>)</span></h1>
   </div>
+
+  <% if (!feed.rows.length) { %>
+    <p class="empty">Nothing recorded yet.</p>
+  <% } else { %>
+    <%# The slider narrows this form's selection; without JS the form still
+        submits every killmail on the page, so the button always works. %>
+    <form class="killselect" method="get" action="/battle/report" data-killselect>
+      <input type="hidden" name="ids" value="<%= feed.rows.map((k) => k.id).join(',') %>" data-selected-ids>
+
+      <div class="selectbar">
+        <p class="selectbar-text">
+          <span data-selection-summary>
+            All <%= h.num(feed.rows.length) %> killmails on this page selected.
+          </span>
+          <span class="dim" data-slider-hint hidden>
+            Drag the handles, or focus one and use the arrow keys.
+          </span>
+        </p>
+        <button class="btn" type="submit">
+          Build report from <span data-selection-count><%= feed.rows.length %></span> kills
+        </button>
+      </div>
+
+      <div class="killpicker">
+        <div class="killrail" data-rail hidden>
+          <div class="killrail-track"></div>
+          <div class="killrail-range" data-rail-range></div>
+          <button type="button" class="killrail-handle" data-handle="start"
+                  role="slider" aria-label="First killmail in the selection"
+                  aria-valuemin="0" aria-valuemax="<%= feed.rows.length - 1 %>" aria-valuenow="0"></button>
+          <button type="button" class="killrail-handle" data-handle="end"
+                  role="slider" aria-label="Last killmail in the selection"
+                  aria-valuemin="0" aria-valuemax="<%= feed.rows.length - 1 %>"
+                  aria-valuenow="<%= feed.rows.length - 1 %>"></button>
+        </div>
+
+        <div class="killlist" data-rows>
+          <% feed.rows.forEach((k) => { %>
+            <div class="killrow-wrap" data-kill-id="<%= k.id %>">
+              <%- include('partials/killrow', { k }) %>
+            </div>
+          <% }) %>
+        </div>
+      </div>
+    </form>
+  <% } %>
+
   <%- include('partials/pagination', { feed, baseQuery: {} }) %>
 </section>
 

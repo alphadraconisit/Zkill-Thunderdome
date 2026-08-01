@@ -32,6 +32,140 @@
     return 'hsl(' + (hash % 360) + ' 45% 32%)';
   }
 
+  // Range slider beside the killmail list: picks a contiguous run of kills and
+  // feeds them to the battle report. Without this the form still submits every
+  // kill on the page, so the feature degrades to "report on this page".
+  document.querySelectorAll('[data-killselect]').forEach(function (form) {
+    var rail = form.querySelector('[data-rail]');
+    var rangeEl = form.querySelector('[data-rail-range]');
+    var rows = Array.prototype.slice.call(form.querySelectorAll('[data-kill-id]'));
+    var idsInput = form.querySelector('[data-selected-ids]');
+    var countEl = form.querySelector('[data-selection-count]');
+    var summaryEl = form.querySelector('[data-selection-summary]');
+    var hintEl = form.querySelector('[data-slider-hint]');
+    if (!rail || !rows.length || !idsInput) return;
+
+    var handles = {
+      start: rail.querySelector('[data-handle="start"]'),
+      end: rail.querySelector('[data-handle="end"]'),
+    };
+    var value = { start: 0, end: rows.length - 1 };
+
+    rail.hidden = false;
+    if (hintEl) hintEl.hidden = false;
+
+    // Handle positions are derived from where the rows actually are, so the
+    // rail stays aligned whatever the row heights turn out to be.
+    //
+    // Everything is measured relative to the rail, because that is the
+    // containing block the handles are positioned in — offsetTop would be
+    // relative to some other ancestor and put the two out of step.
+    var centres = [];
+    function measure() {
+      var railTop = rail.getBoundingClientRect().top;
+      centres = rows.map(function (row) {
+        var box = row.getBoundingClientRect();
+        return box.top + box.height / 2 - railTop;
+      });
+    }
+
+    function centreOf(index) {
+      return centres[index] || 0;
+    }
+
+    function render() {
+      if (!centres.length) measure();
+      var lo = Math.min(value.start, value.end);
+      var hi = Math.max(value.start, value.end);
+
+      rows.forEach(function (row, i) {
+        row.classList.toggle('is-outside', i < lo || i > hi);
+      });
+
+      var top = centreOf(lo);
+      var bottom = centreOf(hi);
+      rangeEl.style.top = top + 'px';
+      rangeEl.style.height = Math.max(2, bottom - top) + 'px';
+      handles.start.style.top = centreOf(value.start) + 'px';
+      handles.end.style.top = centreOf(value.end) + 'px';
+      handles.start.setAttribute('aria-valuenow', String(value.start));
+      handles.end.setAttribute('aria-valuenow', String(value.end));
+
+      var selected = rows.slice(lo, hi + 1);
+      idsInput.value = selected.map(function (r) { return r.dataset.killId; }).join(',');
+      if (countEl) countEl.textContent = String(selected.length);
+      if (summaryEl) {
+        summaryEl.textContent = selected.length === rows.length
+          ? 'All ' + rows.length + ' killmails on this page selected.'
+          : 'Selected ' + selected.length + ' of ' + rows.length + ' killmails on this page.';
+      }
+    }
+
+    function nearestIndex(clientY) {
+      var offset = clientY - rail.getBoundingClientRect().top;
+      var best = 0;
+      var bestDistance = Infinity;
+      for (var i = 0; i < centres.length; i++) {
+        var distance = Math.abs(centres[i] - offset);
+        if (distance < bestDistance) { bestDistance = distance; best = i; }
+      }
+      return best;
+    }
+
+    Object.keys(handles).forEach(function (key) {
+      var handle = handles[key];
+
+      handle.addEventListener('pointerdown', function (event) {
+        event.preventDefault();
+        handle.setPointerCapture(event.pointerId);
+        handle.classList.add('is-dragging');
+      });
+
+      handle.addEventListener('pointermove', function (event) {
+        if (!handle.hasPointerCapture(event.pointerId)) return;
+        value[key] = nearestIndex(event.clientY);
+        render();
+      });
+
+      handle.addEventListener('pointerup', function (event) {
+        handle.releasePointerCapture(event.pointerId);
+        handle.classList.remove('is-dragging');
+      });
+
+      handle.addEventListener('keydown', function (event) {
+        var step = 0;
+        if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') step = -1;
+        else if (event.key === 'ArrowDown' || event.key === 'ArrowRight') step = 1;
+        else if (event.key === 'PageUp') step = -5;
+        else if (event.key === 'PageDown') step = 5;
+        else if (event.key === 'Home') value[key] = 0;
+        else if (event.key === 'End') value[key] = rows.length - 1;
+        else return;
+
+        event.preventDefault();
+        if (step) value[key] = Math.min(rows.length - 1, Math.max(0, value[key] + step));
+        render();
+      });
+    });
+
+    // Clicking a row's gutter area moves the nearer handle to it.
+    rail.addEventListener('pointerdown', function (event) {
+      if (event.target !== rail && event.target.className !== 'killrail-track') return;
+      var index = nearestIndex(event.clientY);
+      var key = Math.abs(index - value.start) <= Math.abs(index - value.end) ? 'start' : 'end';
+      value[key] = index;
+      render();
+    });
+
+    window.addEventListener('resize', function () {
+      measure();
+      render();
+    });
+
+    measure();
+    render();
+  });
+
   // Per-side pilot filter. Rows carry their searchable text in data-crew, so
   // this never has to touch or rebuild the markup.
   document.querySelectorAll('[data-side]').forEach(function (side) {

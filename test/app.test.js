@@ -259,6 +259,38 @@ test('detected battles link to their anchored report', async () => {
   assert.match(html, /href="\/battle\/report\?kill=\d+"/);
 });
 
+test('a battle report can be built from a hand-picked list of killmails', async () => {
+  const list = await (await fetch(`${base}/api/killmails`)).json();
+  const ids = list.killmails.map((k) => k.id);
+
+  const res = await fetch(`${base}/battle/report?ids=${ids.join(',')}`);
+  assert.equal(res.status, 200);
+
+  const html = await res.text();
+  assert.match(html, /hand-picked selection|selected killmail/i);
+  assert.match(html, /EF Zeta/);
+});
+
+test('a selection of unknown ids 404s rather than reporting on nothing', async () => {
+  assert.equal((await fetch(`${base}/battle/report?ids=999998,999999`)).status, 404);
+});
+
+test('junk in the ids parameter is ignored', async () => {
+  const list = await (await fetch(`${base}/api/killmails`)).json();
+  const id = list.killmails[0].id;
+
+  const res = await fetch(`${base}/battle/report?ids=${id},abc,-4,0,${id}`);
+  assert.equal(res.status, 200, 'the one valid id still builds a report');
+});
+
+test('the killmails page offers a range picker wired to the report', async () => {
+  const html = await (await fetch(`${base}/kills`)).text();
+  assert.match(html, /action="\/battle\/report"/);
+  assert.match(html, /name="ids"/);
+  assert.match(html, /role="slider"/);
+  assert.match(html, /data-kill-id="\d+"/);
+});
+
 test('the kill page links to a battle report around that kill', async () => {
   const list = await (await fetch(`${base}/api/killmails`)).json();
   const html = await (await fetch(`${base}/kill/${list.killmails[0].id}`)).text();

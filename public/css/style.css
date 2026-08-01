@@ -183,7 +183,10 @@ code, pre, .code { font-family: var(--mono); font-size: .85em; }
   color: var(--text);
   border-radius: 3px;
 }
-.killrow:last-child { border-bottom: none; }
+/* Rows are wrapped in .killrow-wrap on the picker page, so the "last row"
+   selector has to cover both shapes. */
+.killlist > .killrow:last-child,
+.killrow-wrap:last-child .killrow { border-bottom: none; }
 .killrow:hover { background: var(--panel-2); text-decoration: none; }
 .killrow.tone-kill { border-left-color: rgba(63, 185, 80, .65); }
 .killrow.tone-loss { border-left-color: rgba(244, 85, 63, .65); }
@@ -942,3 +945,61 @@ pre.code {
 .battlelinks { list-style: none; margin: .5rem 0 0; padding: 0; }
 .battlelinks li { padding: .15rem 0; display: flex; gap: .6rem; flex-wrap: wrap; align-items: baseline; }
 .battlelinks .dim { font-size: .82rem; }
+
+/* ---------- killmail range picker ---------- */
+
+.selectbar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 1rem; flex-wrap: wrap;
+  padding: .6rem .75rem;
+  margin-bottom: .6rem;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.selectbar-text { margin: 0; font-size: .88rem; display: flex; flex-direction: column; gap: .1rem; }
+.selectbar-text .dim { font-size: .76rem; }
+
+.killpicker { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: .5rem; }
+
+.killrail { position: relative; }
+.killrail-track {
+  position: absolute; top: 0; bottom: 0; left: 50%;
+  width: 3px; margin-left: -1.5px;
+  background: var(--border);
+  border-radius: 2px;
+}
+.killrail-range {
+  position: absolute; left: 50%;
+  width: 3px; margin-left: -1.5px;
+  background: var(--accent);
+  border-radius: 2px;
+}
+
+.killrail-handle {
+  position: absolute; left: 50%;
+  width: 18px; height: 18px;
+  margin: -9px 0 0 -9px;
+  padding: 0;
+  border: 2px solid var(--accent);
+  border-radius: 50%;
+  background: var(--bg-2);
+  cursor: grab;
+  touch-action: none;
+}
+.killrail-handle::after {
+  /* A bigger invisible hit area than the visible dot. */
+  content: ""; position: absolute; inset: -9px;
+}
+.killrail-handle:hover, .killrail-handle:focus-visible { background: var(--accent); }
+.killrail-handle:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
+.killrail-handle.is-dragging { cursor: grabbing; background: var(--accent); }
+
+.killrow-wrap { transition: opacity .12s ease; }
+.killrow-wrap.is-outside { opacity: .3; }
+.killrow-wrap.is-outside .killrow:hover { background: none; }
+
+@media (max-width: 760px) {
+  .killpicker { grid-template-columns: 20px minmax(0, 1fr); gap: .35rem; }
+  .selectbar { align-items: flex-start; flex-direction: column; }
+}

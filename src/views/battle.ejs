@@ -1,6 +1,17 @@
 <%- include('partials/header') %>
 
-<% if (anchored) { %>
+<% if (selection) { %>
+  <div class="anchornote">
+    <span>
+      Reporting on a <strong>hand-picked selection</strong> of
+      <%= h.num(selection.found) %> killmail<%= selection.found === 1 ? '' : 's' %><%
+        %><% if (selection.found !== selection.requested) { %>
+        <span class="dim">(<%= selection.requested - selection.found %> no longer exist)</span>
+      <% } %>.
+    </span>
+    <a class="btn ghost" href="/kills">Pick a different range</a>
+  </div>
+<% } else if (anchored) { %>
   <div class="anchornote">
     <span>
       Reporting on <strong>one detected battle</strong> &mdash;

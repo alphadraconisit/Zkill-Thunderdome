@@ -212,6 +212,18 @@ list uses `/battle/report?kill=<id>`, which rebuilds exactly that battle's killm
 — so an evening with three fights in one system gives three separate reports rather
 than one merged blur.
 
+### Hand-picked selections
+
+The **Killmails** tab carries a range slider down the left of the list. Drag the two
+handles (or focus one and use the arrow keys) to mark a contiguous run of kills; rows
+outside the selection dim, and the button builds a report from exactly those killmails
+via `/battle/report?ids=…`.
+
+This is the escape hatch for when automatic detection does not match your judgement —
+a fight you want split further, or two that belong together. Without JavaScript the
+slider stays hidden and the button reports on the whole page, so the feature degrades
+rather than breaks.
+
 The manual form still accepts `?from&to[&system]` for ad-hoc windows. Such a window
 may legitimately span several battles; when it does, the report says so and links to
 each battle individually.

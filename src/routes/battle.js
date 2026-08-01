@@ -135,7 +135,20 @@ async function battleForKill(killId, gapMinutes) {
  * window, which may legitimately span several battles; when it does, they are
  * listed so the reader can open one on its own.
  */
+const MAX_SELECTED = 250;
+
+/** `?ids=1,2,3` — an explicit hand-picked selection of killmails. */
+function parseIds(value) {
+  if (!value) return [];
+  return [...new Set(String(value)
+    .split(',')
+    .map((part) => Number.parseInt(part.trim(), 10))
+    .filter((id) => Number.isFinite(id) && id > 0))]
+    .slice(0, MAX_SELECTED);
+}
+
 router.get('/report', wrap(async (req, res, next) => {
+  const selectedIds = parseIds(req.query.ids);
   const anchorId = Number.parseInt(req.query.kill, 10);
   const gapMinutes = Math.min(180, Math.max(1,
     Number.parseInt(req.query.gap, 10) || DEFAULTS.gapMinutes));
@@ -149,7 +162,18 @@ router.get('/report', wrap(async (req, res, next) => {
   let from;
   let to;
 
-  if (Number.isFinite(anchorId)) {
+  let selection = null;
+
+  if (selectedIds.length) {
+    ({ kills, attackers } = await q.killmailsByIds(selectedIds));
+    if (!kills.length) return next();
+
+    selection = { requested: selectedIds.length, found: kills.length };
+    from = new Date(kills[0].killed_at).getTime();
+    to = new Date(kills[kills.length - 1].killed_at).getTime();
+    const systems = [...new Set(kills.map((k) => k.system).filter(Boolean))];
+    system = systems.length === 1 ? systems[0] : null;
+  } else if (Number.isFinite(anchorId)) {
     const found = await battleForKill(anchorId, gapMinutes);
     if (!found) return next();
 
@@ -173,7 +197,8 @@ router.get('/report', wrap(async (req, res, next) => {
   const report = analyseBattle(kills, attackers);
   const chart = damageTimeline(report.timeline.series);
 
-  // In window mode, tell the reader when they are looking at more than one fight.
+  // Outside battle mode, tell the reader when they are looking at more than one
+  // fight — a window or a hand-picked selection can easily span several.
   const contained = anchored
     ? []
     : detectBattles(kills, attackers, { gapMinutes, minKills: 1 })
@@ -184,6 +209,7 @@ router.get('/report', wrap(async (req, res, next) => {
 
   res.render('battle', {
     title: anchored ? `Battle in ${anchored.system}` : 'Battle report',
+    selection,
     kills,
     report,
     chart,
@@ -192,7 +218,7 @@ router.get('/report', wrap(async (req, res, next) => {
     systems: await systemsPromise,
     system,
     presets: PRESETS,
-    preset: anchored ? null : resolveWindow(req.query).preset,
+    preset: anchored || selection ? null : resolveWindow(req.query).preset,
     anchored,
     contained,
     gapMinutes,
