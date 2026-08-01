@@ -195,7 +195,24 @@ router.get('/report', wrap(async (req, res, next) => {
   }
 
   const report = analyseBattle(kills, attackers);
-  const chart = damageTimeline(report.timeline.series);
+
+  // One marker per ship lost, coloured by the side that lost it, so the lane
+  // under the axis reads as "what died, when, and on whose side".
+  const sideOfPilot = new Map();
+  report.teams.forEach((team, index) => {
+    for (const pilot of team.pilots) sideOfPilot.set(pilot.name.toLowerCase(), index);
+  });
+
+  const losses = kills.map((k) => ({
+    t: new Date(k.killed_at).getTime(),
+    id: k.id,
+    ship: k.ship,
+    victim: k.victim_name,
+    time: k.killed_at,
+    sideIndex: sideOfPilot.get((k.victim_name || '').toLowerCase()) ?? 0,
+  }));
+
+  const chart = damageTimeline(report.timeline.series, losses);
 
   // Outside battle mode, tell the reader when they are looking at more than one
   // fight — a window or a hand-picked selection can easily span several.

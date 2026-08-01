@@ -8,8 +8,13 @@
  */
 
 const VIEW_WIDTH = 960;
-const VIEW_HEIGHT = 300;
+const PLOT_HEIGHT = 300;
 const PAD = { top: 16, right: 92, bottom: 28, left: 56 };
+
+// The band of ship icons under the axis: one marker per ship lost.
+const LOSS_SIZE = 26;
+const LOSS_GAP = 3;
+const LOSS_TOP_GAP = 10;
 
 /** Categorical slots, dark mode, in fixed order. Never cycled. */
 const SERIES_COLORS = [
@@ -51,10 +56,45 @@ function clockLabel(ms) {
 }
 
 /**
+ * Lays the ship-loss markers out under the axis.
+ *
+ * Kills seconds apart would sit on top of each other, so markers are packed
+ * into lanes: each one takes the first lane whose previous marker has ended.
+ * Bunched losses therefore stack upwards, and the height of the stack reads as
+ * how fiercely ships were dying at that moment.
+ */
+function placeLosses(losses, scaleX, plot) {
+  const ordered = [...losses].sort((a, b) => a.t - b.t);
+  const laneEnds = [];
+  const markers = [];
+
+  for (const loss of ordered) {
+    const centre = scaleX(loss.t);
+    // Keep whole markers inside the plot even for the first and last kill.
+    const left = Math.min(
+      plot.x + plot.w - LOSS_SIZE,
+      Math.max(plot.x, centre - LOSS_SIZE / 2)
+    );
+
+    let lane = laneEnds.findIndex((end) => left >= end + LOSS_GAP);
+    if (lane === -1) {
+      lane = laneEnds.length;
+      laneEnds.push(0);
+    }
+    laneEnds[lane] = left + LOSS_SIZE;
+
+    markers.push({ ...loss, x: left, centre, lane });
+  }
+
+  return { markers, lanes: laneEnds.length };
+}
+
+/**
  * @param {Array} series [{ label, points: [{t, v}] }]
+ * @param {Array} losses [{ t, id, ship, victim, time, sideIndex }]
  * @returns null when there is nothing to plot
  */
-function damageTimeline(series) {
+function damageTimeline(series, losses = []) {
   const withPoints = series.filter((s) => s.points && s.points.length);
   if (withPoints.length === 0) return null;
 
@@ -71,7 +111,7 @@ function damageTimeline(series) {
     x: PAD.left,
     y: PAD.top,
     w: VIEW_WIDTH - PAD.left - PAD.right,
-    h: VIEW_HEIGHT - PAD.top - PAD.bottom,
+    h: PLOT_HEIGHT - PAD.top - PAD.bottom,
   };
 
   const scaleX = (t) => plot.x + ((t - tMin) / span) * plot.w;
@@ -120,9 +160,18 @@ function damageTimeline(series) {
     xTicks.push({ x: scaleX(t), label: clockLabel(t) });
   }
 
+  const placed = placeLosses(losses, scaleX, plot);
+  const laneTop = plot.y + plot.h + PAD.bottom + LOSS_TOP_GAP;
+  const lossHeight = placed.lanes ? placed.lanes * (LOSS_SIZE + LOSS_GAP) + LOSS_TOP_GAP : 0;
+
   return {
     viewWidth: VIEW_WIDTH,
-    viewHeight: VIEW_HEIGHT,
+    viewHeight: PLOT_HEIGHT + lossHeight,
+    lossSize: LOSS_SIZE,
+    losses: placed.markers.map((marker) => ({
+      ...marker,
+      y: laneTop + marker.lane * (LOSS_SIZE + LOSS_GAP),
+    })),
     plot,
     lines,
     columns,
@@ -131,4 +180,4 @@ function damageTimeline(series) {
   };
 }
 
-module.exports = { damageTimeline, compactNumber, SERIES_COLORS };
+module.exports = { damageTimeline, compactNumber, SERIES_COLORS, LOSS_SIZE };

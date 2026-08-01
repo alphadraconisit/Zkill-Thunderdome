@@ -230,7 +230,11 @@ each battle individually.
 
 `/battle/report` takes a time window and turns every killmail inside it into a two-or-more
 sided report: damage dealt and taken per side and per pilot, kills, losses, and a
-cumulative damage-over-time chart. Deliberately **no ISK anywhere** — a private
+cumulative damage-over-time chart with a **ship-loss lane**: one icon per ship
+destroyed, placed at the moment it died and outlined in the colour of the side that
+lost it, so you can read what died and when at a glance. Icons link to their
+killmail, and losses landing within seconds of each other stack into lanes rather
+than overlapping. Deliberately **no ISK anywhere** — a private
 server has no market to price hulls against, so damage is the honest currency.
 
 Pick a window with the presets (last hour through last 30 days) or explicit

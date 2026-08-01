@@ -238,6 +238,17 @@ test('the battle detection settings are adjustable from the query', async () => 
   assert.match(html, /within 45 minutes/);
 });
 
+test('the damage timeline carries a marker per ship lost', async () => {
+  const list = await (await fetch(`${base}/api/killmails`)).json();
+  const id = list.killmails[0].id;
+
+  const html = await (await fetch(`${base}/battle/report?kill=${id}`)).text();
+
+  assert.match(html, /class="lossmark"/, 'the loss lane is rendered');
+  assert.match(html, /<title>Crane &mdash; DraconisBeta/, 'markers name the ship and victim');
+  assert.match(html, new RegExp(`href="/kill/${id}"`), 'markers link to their killmail');
+});
+
 test('a battle report can be anchored to a single killmail', async () => {
   const list = await (await fetch(`${base}/api/killmails`)).json();
   const id = list.killmails[0].id;

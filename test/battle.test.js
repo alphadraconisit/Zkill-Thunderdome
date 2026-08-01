@@ -341,3 +341,87 @@ test('compactNumber shortens large damage figures', () => {
   assert.equal(compactNumber(35977), '36k');
   assert.equal(compactNumber(1500000), '1.5M');
 });
+
+
+// --- ship-loss lane ---------------------------------------------------------
+
+test('each ship lost gets a marker positioned at the time it died', () => {
+  const report = battle([
+    kill({
+      at: '2026-07-30T21:00:00.000Z',
+      victim: 'Red One', corp: 'Red Corp', alliance: 'Reds', ship: 'Rifter',
+      attackers: [{ name: 'Blue One', corp: 'Blue Corp', alliance: 'Blues', damage: 4000 }],
+    }),
+    kill({
+      at: '2026-07-30T21:30:00.000Z',
+      victim: 'Red Two', corp: 'Red Corp', alliance: 'Reds', ship: 'Ferox',
+      attackers: [{ name: 'Blue One', corp: 'Blue Corp', alliance: 'Blues', damage: 4000 }],
+    }),
+  ]);
+
+  const losses = [
+    { t: Date.parse('2026-07-30T21:00:00.000Z'), id: 1, ship: 'Rifter', victim: 'Red One', sideIndex: 1 },
+    { t: Date.parse('2026-07-30T21:30:00.000Z'), id: 2, ship: 'Ferox', victim: 'Red Two', sideIndex: 1 },
+  ];
+
+  const chart = damageTimeline(report.timeline.series, losses);
+  assert.equal(chart.losses.length, 2);
+
+  // Both sit under the plot, and the later loss is further right.
+  for (const marker of chart.losses) {
+    assert.ok(marker.y > chart.plot.y + chart.plot.h, 'markers sit below the axis');
+    assert.ok(marker.x >= chart.plot.x);
+    assert.ok(marker.x + chart.lossSize <= chart.plot.x + chart.plot.w + 0.5);
+  }
+  assert.ok(chart.losses[1].x > chart.losses[0].x);
+  assert.equal(chart.losses[0].lane, 0);
+  assert.equal(chart.losses[1].lane, 0, 'well-separated losses share one lane');
+});
+
+test('losses at the same moment stack into separate lanes', () => {
+  const report = battle([
+    kill({
+      at: '2026-07-30T21:00:00.000Z',
+      victim: 'Red One', corp: 'Red Corp', alliance: 'Reds',
+      attackers: [{ name: 'Blue One', corp: 'Blue Corp', alliance: 'Blues', damage: 4000 }],
+    }),
+    kill({
+      at: '2026-07-30T21:20:00.000Z',
+      victim: 'Red Two', corp: 'Red Corp', alliance: 'Reds',
+      attackers: [{ name: 'Blue One', corp: 'Blue Corp', alliance: 'Blues', damage: 4000 }],
+    }),
+  ]);
+
+  const at = Date.parse('2026-07-30T21:00:00.000Z');
+  const losses = [
+    { t: at, id: 1, ship: 'Drekavac', victim: 'Red One', sideIndex: 1 },
+    { t: at, id: 2, ship: 'Capsule', victim: 'Red One', sideIndex: 1 },
+    { t: at + 1000, id: 3, ship: 'Ferox', victim: 'Red Two', sideIndex: 1 },
+  ];
+
+  const chart = damageTimeline(report.timeline.series, losses);
+  assert.deepEqual(chart.losses.map((l) => l.lane), [0, 1, 2],
+    'three near-simultaneous losses take three lanes rather than overlapping');
+
+  // Lanes are stacked downwards, one marker height apart.
+  assert.ok(chart.losses[1].y > chart.losses[0].y);
+  assert.ok(chart.losses[2].y > chart.losses[1].y);
+});
+
+test('the chart grows to fit the loss lane, and stays plot-sized without one', () => {
+  const report = battle([
+    kill({
+      at: '2026-07-30T21:00:00.000Z',
+      victim: 'Red One', corp: 'Red Corp', alliance: 'Reds',
+      attackers: [{ name: 'Blue One', corp: 'Blue Corp', alliance: 'Blues', damage: 4000 }],
+    }),
+  ]);
+
+  const bare = damageTimeline(report.timeline.series, []);
+  const withLoss = damageTimeline(report.timeline.series, [
+    { t: Date.parse('2026-07-30T21:00:00.000Z'), id: 1, ship: 'Rifter', victim: 'Red One', sideIndex: 0 },
+  ]);
+
+  assert.equal(bare.losses.length, 0);
+  assert.ok(withLoss.viewHeight > bare.viewHeight, 'the lane adds height rather than overlapping the plot');
+});

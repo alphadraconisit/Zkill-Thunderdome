@@ -6,6 +6,8 @@
 <figure class="chartfigure" data-chart>
   <figcaption class="chartcaption">
     Cumulative damage dealt, by side. Totals step at each killmail.
+    Icons under the axis mark each ship destroyed, at the moment it died &mdash;
+    click one to open its killmail.
   </figcaption>
 
   <div class="legend">
@@ -60,6 +62,36 @@
 
       <rect class="chart-hit" x="<%= chart.plot.x %>" y="<%= chart.plot.y %>"
             width="<%= chart.plot.w %>" height="<%= chart.plot.h %>" fill="transparent"></rect>
+
+      <%# Ship-loss lane: one icon per ship destroyed, at the moment it died.
+          Drawn inside the SVG so it stays aligned with the axis at any width. %>
+      <% if (chart.losses.length) { %>
+        <g class="losslane">
+          <% chart.losses.forEach((loss) => { %>
+            <% const icon = esi.itemIcon(loss.ship, 32); %>
+            <% const colour = h.seriesColor(loss.sideIndex); %>
+            <a href="/kill/<%= loss.id %>" class="lossmark">
+              <title><%= loss.ship %> &mdash; <%= loss.victim %>, <%= h.clock(loss.time) %></title>
+              <line class="loss-stem" x1="<%= (loss.centre).toFixed(1) %>"
+                    y1="<%= chart.plot.y + chart.plot.h %>"
+                    x2="<%= (loss.x + chart.lossSize / 2).toFixed(1) %>"
+                    y2="<%= loss.y %>" stroke="<%= colour %>"></line>
+              <rect class="loss-tile" x="<%= loss.x.toFixed(1) %>" y="<%= loss.y %>"
+                    width="<%= chart.lossSize %>" height="<%= chart.lossSize %>"
+                    rx="3" fill="#0b0f15" stroke="<%= colour %>" stroke-width="1.5"></rect>
+              <% if (icon) { %>
+                <image href="<%= icon %>" x="<%= (loss.x + 2).toFixed(1) %>" y="<%= loss.y + 2 %>"
+                       width="<%= chart.lossSize - 4 %>" height="<%= chart.lossSize - 4 %>"
+                       preserveAspectRatio="xMidYMid meet"></image>
+              <% } else { %>
+                <text class="loss-initials" x="<%= (loss.x + chart.lossSize / 2).toFixed(1) %>"
+                      y="<%= loss.y + chart.lossSize / 2 + 4 %>" text-anchor="middle"
+                      fill="<%= colour %>"><%= h.initials(loss.ship) %></text>
+              <% } %>
+            </a>
+          <% }) %>
+        </g>
+      <% } %>
     </svg>
 
     <div class="charttip" hidden role="status"></div>
