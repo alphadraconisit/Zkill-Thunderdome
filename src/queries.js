@@ -1,6 +1,6 @@
 'use strict';
 
-const { db } = require('./db');
+const { all, get } = require('./db');
 
 const PAGE_SIZE = 25;
 
@@ -54,51 +54,54 @@ function entityClause(kind, name, side) {
   return { where: `(${victim} OR ${attacker})`, params: p };
 }
 
-function listKills({ where = '1=1', params = {}, page = 1, pageSize = PAGE_SIZE } = {}) {
+async function listKills({ where = '1=1', params = {}, page = 1, pageSize = PAGE_SIZE } = {}) {
   const offset = (Math.max(1, page) - 1) * pageSize;
-  const rows = db.prepare(`
-    SELECT ${KILL_COLUMNS} FROM killmails k
-    WHERE ${where}
-    ORDER BY k.killed_at DESC, k.id DESC
-    LIMIT @limit OFFSET @offset
-  `).all({ ...params, limit: pageSize, offset });
 
-  const { total } = db.prepare(`SELECT COUNT(*) AS total FROM killmails k WHERE ${where}`).get(params);
+  const [rows, totals] = await Promise.all([
+    all(`
+      SELECT ${KILL_COLUMNS} FROM killmails k
+      WHERE ${where}
+      ORDER BY k.killed_at DESC, k.id DESC
+      LIMIT @limit OFFSET @offset
+    `, { ...params, limit: pageSize, offset }),
+    get(`SELECT COUNT(*) AS total FROM killmails k WHERE ${where}`, params),
+  ]);
 
+  const total = totals.total;
   return { rows, total, page: Math.max(1, page), pageSize, pages: Math.max(1, Math.ceil(total / pageSize)) };
 }
 
-function getKillmail(id) {
-  const kill = db.prepare('SELECT * FROM killmails WHERE id = ?').get(id);
+async function getKillmail(id) {
+  const kill = await get('SELECT * FROM killmails WHERE id = @id', { id });
   if (!kill) return null;
 
-  kill.attackers = db.prepare(
-    'SELECT * FROM attackers WHERE killmail_id = ? ORDER BY damage DESC, position ASC'
-  ).all(id);
+  const [attackers, items] = await Promise.all([
+    all('SELECT * FROM attackers WHERE killmail_id = @id ORDER BY damage DESC, position ASC', { id }),
+    all(
+      'SELECT * FROM items WHERE killmail_id = @id ORDER BY location IS NULL DESC, location ASC, name ASC',
+      { id }
+    ),
+  ]);
 
-  const items = db.prepare(
-    'SELECT * FROM items WHERE killmail_id = ? ORDER BY location IS NULL DESC, location ASC, name ASC'
-  ).all(id);
-
+  kill.attackers = attackers;
   kill.destroyedItems = items.filter((i) => i.status === 'destroyed');
   kill.droppedItems = items.filter((i) => i.status === 'dropped');
   return kill;
 }
 
-function entityStats(kind, name) {
-  const losses = entityClause(kind, name, 'losses');
-  const kills = entityClause(kind, name, 'kills');
-
-  const count = (clause) =>
-    db.prepare(`SELECT COUNT(*) AS n FROM killmails k WHERE ${clause.where}`).get(clause.params).n;
+async function entityStats(kind, name) {
+  const count = async (side) => {
+    const clause = entityClause(kind, name, side);
+    const row = await get(`SELECT COUNT(*) AS n FROM killmails k WHERE ${clause.where}`, clause.params);
+    return row.n;
+  };
 
   if (kind === 'system') {
-    const all = entityClause(kind, name, 'all');
-    return { kills: count(all), losses: 0, total: count(all), efficiency: null };
+    const total = await count('all');
+    return { kills: total, losses: 0, total, efficiency: null };
   }
 
-  const k = count(kills);
-  const l = count(losses);
+  const [k, l] = await Promise.all([count('kills'), count('losses')]);
   return {
     kills: k,
     losses: l,
@@ -110,7 +113,7 @@ function entityStats(kind, name) {
 /** Top involved entities on an entity's kills — the "who they fly with" panel. */
 function topAssociates(kind, name, column, limit = 10) {
   const clause = entityClause(kind, name, 'kills');
-  return db.prepare(`
+  return all(`
     SELECT a.${column} AS label, COUNT(DISTINCT a.killmail_id) AS n
     FROM attackers a
     WHERE a.killmail_id IN (SELECT k.id FROM killmails k WHERE ${clause.where})
@@ -118,48 +121,49 @@ function topAssociates(kind, name, column, limit = 10) {
     GROUP BY a.${column} COLLATE NOCASE
     ORDER BY n DESC, label ASC
     LIMIT @limit
-  `).all({ ...clause.params, limit });
+  `, { ...clause.params, limit });
 }
 
 function shipBreakdown(kind, name, limit = 10) {
   const clause = entityClause(kind, name, 'losses');
-  return db.prepare(`
+  return all(`
     SELECT k.ship AS label, COUNT(*) AS n
     FROM killmails k
     WHERE ${clause.where}
     GROUP BY k.ship COLLATE NOCASE
     ORDER BY n DESC, label ASC
     LIMIT @limit
-  `).all({ ...clause.params, limit });
+  `, { ...clause.params, limit });
 }
 
-function boardSummary() {
-  const totals = db.prepare(`
-    SELECT
-      COUNT(*) AS killmails,
-      COALESCE(SUM(attacker_count), 0) AS involved,
-      MIN(killed_at) AS first_kill,
-      MAX(killed_at) AS last_kill
-    FROM killmails
-  `).get();
+async function boardSummary() {
+  const [totals, pilots, last7] = await Promise.all([
+    get(`
+      SELECT
+        COUNT(*) AS killmails,
+        COALESCE(SUM(attacker_count), 0) AS involved,
+        MIN(killed_at) AS first_kill,
+        MAX(killed_at) AS last_kill
+      FROM killmails
+    `),
+    get(`
+      SELECT COUNT(*) AS n FROM (
+        SELECT victim_name AS name FROM killmails
+        UNION
+        SELECT name FROM attackers
+      )
+    `),
+    get('SELECT COUNT(*) AS n FROM killmails WHERE killed_at >= @since', { since: sinceIso(7) }),
+  ]);
 
-  const pilots = db.prepare(`
-    SELECT COUNT(*) AS n FROM (
-      SELECT victim_name AS name FROM killmails
-      UNION
-      SELECT name FROM attackers
-    )
-  `).get().n;
-
-  const last7 = db.prepare('SELECT COUNT(*) AS n FROM killmails WHERE killed_at >= ?')
-    .get(sinceIso(7)).n;
-
-  return { ...totals, pilots, last7 };
+  return { ...totals, pilots: pilots.n, last7: last7.n };
 }
 
-function killsSince(days) {
-  return db.prepare('SELECT COUNT(*) AS n FROM killmails WHERE killed_at >= ?')
-    .get(sinceIso(days)).n;
+async function killsSince(days) {
+  const row = await get('SELECT COUNT(*) AS n FROM killmails WHERE killed_at >= @since', {
+    since: sinceIso(days),
+  });
+  return row.n;
 }
 
 /**
@@ -169,7 +173,7 @@ function killsSince(days) {
  */
 function leaderboard(column, { days = 30, limit = 10 } = {}) {
   const windowed = days != null;
-  return db.prepare(`
+  return all(`
     SELECT a.${column} AS label, COUNT(DISTINCT a.killmail_id) AS n
     FROM attackers a
     JOIN killmails k ON k.id = a.killmail_id
@@ -178,12 +182,12 @@ function leaderboard(column, { days = 30, limit = 10 } = {}) {
     GROUP BY a.${column} COLLATE NOCASE
     ORDER BY n DESC, label ASC
     LIMIT @limit
-  `).all(windowed ? { since: sinceIso(days), limit } : { limit });
+  `, windowed ? { since: sinceIso(days), limit } : { limit });
 }
 
 function topSystems({ days = 30, limit = 10 } = {}) {
   const windowed = days != null;
-  return db.prepare(`
+  return all(`
     SELECT system AS label, COUNT(*) AS n
     FROM killmails
     WHERE system IS NOT NULL
@@ -191,17 +195,17 @@ function topSystems({ days = 30, limit = 10 } = {}) {
     GROUP BY system COLLATE NOCASE
     ORDER BY n DESC, label ASC
     LIMIT @limit
-  `).all(windowed ? { since: sinceIso(days), limit } : { limit });
+  `, windowed ? { since: sinceIso(days), limit } : { limit });
 }
 
 /** Kills per day for the activity sparkline. */
-function activity(days = 30) {
-  const rows = db.prepare(`
+async function activity(days = 30) {
+  const rows = await all(`
     SELECT date(killed_at) AS day, COUNT(*) AS n
     FROM killmails
     WHERE killed_at >= @since
     GROUP BY day
-  `).all({ since: sinceIso(days - 1).slice(0, 10) });
+  `, { since: sinceIso(days - 1).slice(0, 10) });
 
   const byDay = new Map(rows.map((r) => [r.day, r.n]));
   const out = [];
@@ -213,9 +217,8 @@ function activity(days = 30) {
 }
 
 /** Cross-entity search over pilots, corps, alliances, systems and ships. */
-function search(term, limit = 40) {
-  const like = `%${term}%`;
-  const rows = db.prepare(`
+async function search(term, limit = 40) {
+  const rows = await all(`
     SELECT * FROM (
       SELECT 'character'   AS kind, victim_name     AS label FROM killmails WHERE victim_name     LIKE @like
       UNION SELECT 'character',     name                     FROM attackers WHERE name            LIKE @like
@@ -230,7 +233,7 @@ function search(term, limit = 40) {
     WHERE label IS NOT NULL
     ORDER BY length(label) ASC, label ASC
     LIMIT @limit
-  `).all({ like, limit });
+  `, { like: `%${term}%`, limit });
 
   // The UNION is case-sensitive; fold near-duplicate spellings for display.
   const seen = new Set();
@@ -242,13 +245,14 @@ function search(term, limit = 40) {
   });
 }
 
-function distinctShipNames() {
-  return db.prepare(`
+async function distinctShipNames() {
+  const rows = await all(`
     SELECT DISTINCT name FROM (
       SELECT ship AS name FROM killmails WHERE ship IS NOT NULL
       UNION SELECT ship FROM attackers WHERE ship IS NOT NULL
     )
-  `).all().map((r) => r.name);
+  `);
+  return rows.map((r) => r.name);
 }
 
 module.exports = {

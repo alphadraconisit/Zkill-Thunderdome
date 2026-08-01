@@ -2,6 +2,7 @@
 
 const express = require('express');
 const q = require('../queries');
+const { wrap } = require('../async');
 
 const router = express.Router();
 
@@ -18,55 +19,64 @@ function pageParam(req) {
   return Number.isFinite(n) && n > 0 ? n : 1;
 }
 
-router.get('/', (req, res) => {
+router.get('/', wrap(async (req, res) => {
   const page = pageParam(req);
-  const feed = q.listKills({ page, pageSize: 25 });
 
   // Fall back to all-time rankings when the last 30 days were quiet.
-  const days = q.killsSince(30) > 0 ? 30 : null;
+  const days = (await q.killsSince(30)) > 0 ? 30 : null;
   const windowLabel = days ? '30d' : 'all time';
+
+  const [feed, summary, activity, topPilots, topCorps, topAlliances, topSystems, topShips] =
+    await Promise.all([
+      q.listKills({ page, pageSize: 25 }),
+      q.boardSummary(),
+      q.activity(30),
+      q.leaderboard('name', { days }),
+      q.leaderboard('corp', { days }),
+      q.leaderboard('alliance', { days }),
+      q.topSystems({ days }),
+      q.leaderboard('ship', { days }),
+    ]);
 
   res.render('home', {
     title: 'Recent kills',
-    feed,
-    windowLabel,
-    summary: q.boardSummary(),
-    activity: q.activity(30),
-    topPilots: q.leaderboard('name', { days }),
-    topCorps: q.leaderboard('corp', { days }),
-    topAlliances: q.leaderboard('alliance', { days }),
-    topSystems: q.topSystems({ days }),
-    topShips: q.leaderboard('ship', { days }),
+    feed, summary, activity, windowLabel,
+    topPilots, topCorps, topAlliances, topSystems, topShips,
   });
-});
+}));
 
-router.get('/kills', (req, res) => {
-  const feed = q.listKills({ page: pageParam(req), pageSize: 50 });
+router.get('/kills', wrap(async (req, res) => {
+  const feed = await q.listKills({ page: pageParam(req), pageSize: 50 });
   res.render('kills', { title: 'All killmails', feed });
-});
+}));
 
-router.get('/kill/:id', (req, res, next) => {
-  const kill = q.getKillmail(Number.parseInt(req.params.id, 10));
+router.get('/kill/:id', wrap(async (req, res, next) => {
+  const kill = await q.getKillmail(Number.parseInt(req.params.id, 10));
   if (!kill) return next();
 
-  res.render('kill', {
-    title: `${kill.victim_name} — ${kill.ship}`,
-    kill,
-  });
-});
+  res.render('kill', { title: `${kill.victim_name} — ${kill.ship}`, kill });
+}));
 
-router.get('/kill/:id/raw', (req, res, next) => {
-  const kill = q.getKillmail(Number.parseInt(req.params.id, 10));
+router.get('/kill/:id/raw', wrap(async (req, res, next) => {
+  const kill = await q.getKillmail(Number.parseInt(req.params.id, 10));
   if (!kill) return next();
   res.type('text/plain').send(kill.raw);
-});
+}));
 
 for (const [kind, label] of Object.entries(ENTITY_KINDS)) {
-  router.get(`/${kind}/:name`, (req, res) => {
+  router.get(`/${kind}/:name`, wrap(async (req, res) => {
     const name = req.params.name;
     const side = ['kills', 'losses', 'all'].includes(req.query.side) ? req.query.side : 'all';
     const clause = q.entityClause(kind, name, side);
-    const feed = q.listKills({ ...clause, page: pageParam(req), pageSize: 25 });
+    const isSystem = kind === 'system';
+
+    const [feed, stats, topCorps, topShips, lostShips] = await Promise.all([
+      q.listKills({ ...clause, page: pageParam(req), pageSize: 25 }),
+      q.entityStats(kind, name),
+      isSystem ? [] : q.topAssociates(kind, name, 'corp'),
+      isSystem ? [] : q.topAssociates(kind, name, 'ship'),
+      isSystem ? [] : q.shipBreakdown(kind, name),
+    ]);
 
     res.render('entity', {
       title: name,
@@ -74,18 +84,14 @@ for (const [kind, label] of Object.entries(ENTITY_KINDS)) {
       kindLabel: label,
       name,
       side,
-      feed,
-      stats: q.entityStats(kind, name),
-      topCorps: kind === 'system' ? [] : q.topAssociates(kind, name, 'corp'),
-      topShips: kind === 'system' ? [] : q.topAssociates(kind, name, 'ship'),
-      lostShips: kind === 'system' ? [] : q.shipBreakdown(kind, name),
+      feed, stats, topCorps, topShips, lostShips,
     });
-  });
+  }));
 }
 
-router.get('/search', (req, res) => {
+router.get('/search', wrap(async (req, res) => {
   const term = (req.query.q || '').trim();
-  const results = term.length >= 2 ? q.search(term) : [];
+  const results = term.length >= 2 ? await q.search(term) : [];
 
   // A single exact hit is almost always what the user typed — jump straight there.
   const exact = results.filter((r) => r.label.toLowerCase() === term.toLowerCase());
@@ -94,6 +100,6 @@ router.get('/search', (req, res) => {
   }
 
   res.render('search', { title: `Search: ${term}`, term, results });
-});
+}));
 
 module.exports = router;

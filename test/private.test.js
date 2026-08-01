@@ -7,7 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'thunderdome-private-'));
-process.env.DATA_DIR = TMP;
+process.env.TURSO_DATABASE_URL = `file:${path.join(TMP, 'test.db')}`;
 process.env.SESSION_SECRET = 'test-secret';
 process.env.SITE_PASSWORD = 'fleet-only';
 process.env.ESI_LOOKUP = '0';
@@ -18,6 +18,7 @@ let server;
 let base;
 
 test.before(async () => {
+  await app.init();
   await new Promise((resolve) => { server = app.listen(0, resolve); });
   base = `http://127.0.0.1:${server.address().port}`;
 });

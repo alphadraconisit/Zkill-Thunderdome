@@ -1,35 +1,41 @@
 # Render blueprint — create the service with "New > Blueprint" and point it at this repo.
+#
+# Storage lives in Turso (hosted libSQL), not on a Render disk, so this runs on
+# the free instance type. Create the database first:
+#
+#   turso db create thunderdome
+#   turso db show thunderdome --url        -> TURSO_DATABASE_URL
+#   turso db tokens create thunderdome     -> TURSO_AUTH_TOKEN
 services:
   - type: web
     name: thunderdome-killboard
     runtime: node
-    plan: starter # a persistent disk requires a paid instance type
+    plan: free
     buildCommand: npm ci
     startCommand: npm start
     healthCheckPath: /api/health
     autoDeploy: true
 
-    # The SQLite database lives on this disk so killmails survive deploys.
-    disk:
-      name: killboard-data
-      mountPath: /var/data
-      sizeGB: 1
-
     envVars:
       - key: NODE_ENV
         value: production
-      - key: DATA_DIR
-        value: /var/data
       - key: BOARD_NAME
         value: Thunderdome
       - key: SESSION_SECRET
         generateValue: true
+
       # Set these in the Render dashboard; they are deliberately not stored here.
       #
-      # ADMIN_PASSWORD  required — unlocks /admin so you can paste killmails.
-      # API_KEY         optional — enables POST /api/killmails for automation.
-      # SITE_PASSWORD   LEAVE BLANK for a public board. Setting it hides every
-      #                 page behind a login.
+      # TURSO_DATABASE_URL  required — libsql://<db>-<org>.turso.io
+      # TURSO_AUTH_TOKEN    required — from `turso db tokens create`
+      # ADMIN_PASSWORD      required — unlocks /admin so you can paste killmails.
+      # API_KEY             optional — enables POST /api/killmails for automation.
+      # SITE_PASSWORD       LEAVE BLANK for a public board. Setting it hides
+      #                     every page behind a login.
+      - key: TURSO_DATABASE_URL
+        sync: false
+      - key: TURSO_AUTH_TOKEN
+        sync: false
       - key: ADMIN_PASSWORD
         sync: false
       - key: API_KEY

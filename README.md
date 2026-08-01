@@ -1,6 +1,7 @@
 # Thunderdome Killboard
 
-A zKillboard-style killboard for a **private** EVE server, built to run on [Render](https://render.com).
+A zKillboard-style killboard for a **private** EVE server, built to run for free on
+[Render](https://render.com) with a hosted [Turso](https://turso.tech) database.
 
 Killmails are pasted in exactly the format the server produces — no ESI, no API keys, no
 external killmail feed. Paste the text, and the board does the rest: parsing, deduplicating,
@@ -85,41 +86,60 @@ cp .env.example .env      # then edit it
 npm start                 # http://localhost:3000
 ```
 
-Set at minimum `ADMIN_PASSWORD` so you can reach `/admin` and paste your first killmail.
+With `TURSO_DATABASE_URL` left blank, the board writes to a local SQLite file under
+`DATA_DIR` — no Turso account needed for development. Set `ADMIN_PASSWORD` so you can reach
+`/admin` and paste your first killmail.
 
 ```bash
-npm test                  # parser + HTTP integration tests
+npm test                  # parser, storage and HTTP integration tests
 ```
 
-## Deploying to Render
+## Deploying free on Render + Turso
 
-The repository ships a `render.yaml` blueprint.
+The board keeps its data in Turso rather than on a local disk, which is what lets it run on
+Render's free instance type — Render's filesystem is ephemeral, and disks are a paid feature.
 
-1. Push this repo to GitHub.
-2. In Render, **New → Blueprint**, pick the repo, and apply.
-3. Set the secret environment variables in the dashboard: `ADMIN_PASSWORD`, and optionally
-   `API_KEY` and `SITE_PASSWORD`.
+**1. Create the database.** Install the [Turso CLI](https://docs.turso.tech/cli), then:
 
-The blueprint provisions a Node web service with a 1 GB persistent disk mounted at `/var/data`,
-where the SQLite database lives. **The disk matters** — without it Render's filesystem is
-ephemeral and every deploy would wipe the board. Persistent disks require a paid instance type;
-the blueprint uses `starter`.
+```bash
+turso auth signup
+turso db create thunderdome
+turso db show thunderdome --url      # -> TURSO_DATABASE_URL
+turso db tokens create thunderdome   # -> TURSO_AUTH_TOKEN
+```
 
-To deploy manually instead of via the blueprint:
+The schema is created automatically on first boot; there is no migration step to run.
 
-| Setting | Value |
+**2. Deploy.** In Render: **New → Blueprint**, pick this repo, apply. Fill in the prompted
+variables:
+
+| Variable | Value |
 | --- | --- |
-| Runtime | Node |
-| Build command | `npm ci` |
-| Start command | `npm start` |
-| Health check path | `/api/health` |
-| Disk mount path | `/var/data` (then set `DATA_DIR=/var/data`) |
+| `TURSO_DATABASE_URL` | From `turso db show`. Looks like `libsql://thunderdome-you.turso.io`. |
+| `TURSO_AUTH_TOKEN` | From `turso db tokens create`. |
+| `ADMIN_PASSWORD` | A strong password — this is how you paste killmails. |
+| `API_KEY` | Optional, for automated submission. |
+| `SITE_PASSWORD` | **Leave blank for a public board.** Setting it requires a login to read anything. |
+
+**3. Add killmails.** Open `/login`, sign in with `ADMIN_PASSWORD`, then **Submit**.
+
+### What "free" costs you
+
+Render's free instances sleep after about 15 minutes of inactivity, so the first visitor
+after a quiet spell waits roughly 30–60 seconds for a cold start. Everyone after that gets
+normal speed until it idles again. The data itself is safe across sleeps, restarts and
+deploys because it lives in Turso, not on the instance.
+
+Both free tiers are generous relative to a private killboard's traffic, but they are the
+providers' to change — worth a glance at current terms before you rely on it.
 
 ## Configuration
 
 | Variable | Purpose |
 | --- | --- |
-| `DATA_DIR` | Directory for the SQLite database. Point at the mounted disk in production. |
+| `TURSO_DATABASE_URL` | Hosted libSQL database URL. Blank means "use a local file". |
+| `TURSO_AUTH_TOKEN` | Auth token for that database. |
+| `DATA_DIR` | Local SQLite directory, used only when `TURSO_DATABASE_URL` is blank. |
 | `SESSION_SECRET` | Signs the session cookie. Generate with `openssl rand -hex 32`. |
 | `ADMIN_PASSWORD` | Unlocks `/admin` (submitting and deleting). Admin area is disabled if unset. |
 | `API_KEY` | Bearer token for `POST /api/killmails`. The write API is disabled if unset. |
@@ -177,13 +197,18 @@ curl -X POST https://your-board.onrender.com/api/killmails \
 ```
 src/
   parser.js      killmail text -> structured data (no I/O)
-  db.js          SQLite schema and writes
+  db.js          libSQL client, schema, transactional writes
   queries.js     read queries, stats and leaderboards
   ingest.js      parse + store + queue artwork lookups
-  esi.js         ship name -> EVE type ID, cached in SQLite
+  esi.js         ship name -> EVE type ID, cached in memory and in the database
   auth.js        signed-cookie sessions, admin/site/API gates
+  async.js       async route wrapper so rejections reach the error handler
   routes/        board, admin, auth, api
   views/         EJS templates
 public/          stylesheet and progressive-enhancement JS
-test/            parser unit tests and HTTP integration tests
+test/            parser, storage and HTTP integration tests
 ```
+
+Every database call is async. Templates, however, ask for ship artwork while rendering, so
+the `type_ids` table is mirrored in memory at startup and `esi.typeIdFor()` stays
+synchronous — see `loadCache()` in `src/esi.js`.

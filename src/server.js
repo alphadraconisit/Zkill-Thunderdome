@@ -7,6 +7,7 @@ const cookieParser = require('cookie-parser');
 const auth = require('./auth');
 const helpers = require('./helpers');
 const esi = require('./esi');
+const { migrate, config } = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -52,11 +53,29 @@ app.use((err, req, res, _next) => {
   res.status(status).render('message', { title: 'Something broke', message: err.message });
 });
 
+/**
+ * Applies the schema and warms the artwork cache. Must finish before the first
+ * request: templates read type IDs synchronously from that cache.
+ */
+async function init() {
+  await migrate();
+  const cached = await esi.loadCache();
+  console.log(`[db] ready (${config.url.split('?')[0]}), ${cached} type ids cached`);
+}
+
 if (require.main === module) {
-  app.listen(PORT, () => {
-    console.log(`${BOARD_NAME} killboard listening on :${PORT}`);
-    esi.retryUnresolved().catch(() => {});
-  });
+  init()
+    .then(() => {
+      app.listen(PORT, () => {
+        console.log(`${BOARD_NAME} killboard listening on :${PORT}`);
+        esi.retryUnresolved().catch(() => {});
+      });
+    })
+    .catch((err) => {
+      console.error('[startup] failed:', err);
+      process.exit(1);
+    });
 }
 
 module.exports = app;
+module.exports.init = init;

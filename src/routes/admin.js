@@ -6,46 +6,49 @@ const { ingestText } = require('../ingest');
 const { deleteKillmail } = require('../db');
 const q = require('../queries');
 const esi = require('../esi');
+const { wrap } = require('../async');
 
 const router = express.Router();
 router.use(auth.requireAdmin);
 
-router.get('/', (req, res) => {
-  res.render('admin', {
-    title: 'Submit killmail',
-    result: null,
-    text: '',
-    recent: q.listKills({ page: 1, pageSize: 15 }).rows,
-    summary: q.boardSummary(),
-    apiEnabled: Boolean(auth.API_KEY),
-    esiEnabled: esi.ENABLED,
-  });
-});
+async function adminView(result, text) {
+  const [recent, summary] = await Promise.all([
+    q.listKills({ page: 1, pageSize: 15 }),
+    q.boardSummary(),
+  ]);
 
-router.post('/submit', (req, res) => {
-  const text = req.body.killmail || '';
-  const result = ingestText(text);
-
-  res.render('admin', {
+  return {
     title: 'Submit killmail',
     result,
-    // Keep the paste around when something failed so it can be corrected.
-    text: result.errors.length ? text : '',
-    recent: q.listKills({ page: 1, pageSize: 15 }).rows,
-    summary: q.boardSummary(),
+    text,
+    recent: recent.rows,
+    summary,
     apiEnabled: Boolean(auth.API_KEY),
     esiEnabled: esi.ENABLED,
-  });
-});
+  };
+}
 
-router.post('/delete/:id', (req, res) => {
-  deleteKillmail(Number.parseInt(req.params.id, 10));
-  res.redirect('/admin');
-});
+router.get('/', wrap(async (req, res) => {
+  res.render('admin', await adminView(null, ''));
+}));
 
-router.post('/resolve-images', async (req, res) => {
-  await esi.resolveNames(q.distinctShipNames(), { force: true }).catch(() => {});
+router.post('/submit', wrap(async (req, res) => {
+  const text = req.body.killmail || '';
+  const result = await ingestText(text);
+
+  // Keep the paste around when something failed so it can be corrected.
+  res.render('admin', await adminView(result, result.errors.length ? text : ''));
+}));
+
+router.post('/delete/:id', wrap(async (req, res) => {
+  await deleteKillmail(Number.parseInt(req.params.id, 10));
   res.redirect('/admin');
-});
+}));
+
+router.post('/resolve-images', wrap(async (req, res) => {
+  const names = await q.distinctShipNames();
+  await esi.resolveNames(names, { force: true }).catch(() => {});
+  res.redirect('/admin');
+}));
 
 module.exports = router;

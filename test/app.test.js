@@ -8,7 +8,7 @@ const path = require('node:path');
 
 // Must be set before the app (and therefore the database) is required.
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'thunderdome-test-'));
-process.env.DATA_DIR = TMP;
+process.env.TURSO_DATABASE_URL = `file:${path.join(TMP, 'test.db')}`;
 process.env.SESSION_SECRET = 'test-secret';
 process.env.API_KEY = 'test-api-key';
 process.env.ADMIN_PASSWORD = 'test-admin';
@@ -23,6 +23,7 @@ let server;
 let base;
 
 test.before(async () => {
+  await app.init();
   await new Promise((resolve) => {
     server = app.listen(0, resolve);
   });
