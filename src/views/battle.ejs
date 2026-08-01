@@ -1,0 +1,167 @@
+<%- include('partials/header') %>
+
+<form class="filterbar" method="get" action="/battle">
+  <div class="filterfield">
+    <label for="from">From (EVE time)</label>
+    <input type="datetime-local" id="from" name="from" value="<%= window.fromInput %>">
+  </div>
+  <div class="filterfield">
+    <label for="to">To</label>
+    <input type="datetime-local" id="to" name="to" value="<%= window.toInput %>">
+  </div>
+  <div class="filterfield">
+    <label for="system">System</label>
+    <input list="systemlist" id="system" name="system" value="<%= system || '' %>" placeholder="All systems"
+           autocomplete="off">
+    <datalist id="systemlist">
+      <% systems.forEach((s) => { %><option value="<%= s.label %>"></option><% }) %>
+    </datalist>
+  </div>
+  <button class="btn" type="submit">Build report</button>
+
+  <div class="presets">
+    <% Object.entries(presets).forEach(([key, value]) => { %>
+      <a class="pg <%= preset === key ? 'current' : '' %>"
+         href="<%= h.buildQuery(system ? { system } : {}, { preset: key }) %>"><%= value.label %></a>
+    <% }) %>
+  </div>
+</form>
+
+<% if (!report.summary.killmails) { %>
+  <section class="panel">
+    <h1 class="panel-title">Battle report</h1>
+    <p class="empty">
+      No killmails between <%= h.formatDateLong(window.from) %> and <%= h.formatDateLong(window.to) %><%
+        %><% if (system) { %> in <%= system %><% } %>.
+      Widen the window or clear the system filter.
+    </p>
+  </section>
+<% } else { %>
+
+  <section class="hero battlehero">
+    <div class="hero-stats">
+      <div class="stat">
+        <span class="stat-n"><%= h.formatDuration(report.summary.durationMs) %></span>
+        <span class="stat-l">duration</span>
+      </div>
+      <div class="stat">
+        <span class="stat-n"><%= h.num(report.summary.killmails) %></span>
+        <span class="stat-l">ships destroyed</span>
+      </div>
+      <div class="stat">
+        <span class="stat-n"><%= h.num(report.summary.pilots) %></span>
+        <span class="stat-l">pilots</span>
+      </div>
+      <div class="stat">
+        <span class="stat-n"><%= h.chartNumber(report.summary.damage) %></span>
+        <span class="stat-l">total damage</span>
+      </div>
+      <div class="stat">
+        <span class="stat-n"><%= report.teams.length %></span>
+        <span class="stat-l">sides</span>
+      </div>
+    </div>
+
+    <div class="battlewhen">
+      <div><%= h.formatDateLong(report.summary.start) %> &rarr; <%= h.formatDateLong(report.summary.end) %></div>
+      <div class="dim">
+        <% if (report.summary.systems.length === 1) { %>
+          <a href="/system/<%= encodeURIComponent(report.summary.systems[0]) %>"><%= report.summary.systems[0] %></a>
+        <% } else { %>
+          <%= report.summary.systems.length %> systems:
+          <%= report.summary.systems.slice(0, 4).join(', ') %><%= report.summary.systems.length > 4 ? '…' : '' %>
+        <% } %>
+      </div>
+    </div>
+  </section>
+
+  <% if (truncated) { %>
+    <div class="alert info">
+      This window hit the <%= h.num(limit) %>-killmail cap, so the report covers only the
+      earliest <%= h.num(limit) %>. Narrow the time range for a complete picture.
+    </div>
+  <% } %>
+
+  <% if (chart) { %>
+    <section class="panel">
+      <h2 class="panel-title">Damage timeline</h2>
+      <%- include('partials/damagechart', { chart }) %>
+    </section>
+  <% } %>
+
+  <section class="panel">
+    <h2 class="panel-title">Sides <span class="dim">(<%= report.teams.length %>)</span></h2>
+    <div class="teamgrid">
+      <% report.teams.forEach((team, i) => { %>
+        <article class="teamcard">
+          <header class="teamcard-head">
+            <span class="teamswatch" style="background: <%= h.seriesColor(i) %>"></span>
+            <div>
+              <h3>
+                <% if (h.entityUrl(team.kind, team.label)) { %>
+                  <a href="<%= h.entityUrl(team.kind, team.label) %>"><%= team.label %></a>
+                <% } else { %><%= team.label %><% } %>
+              </h3>
+              <span class="dim">
+                <%= team.kind %><% if (team.alliedCount) { %> + <%= team.alliedCount %> allied<% } %>
+              </span>
+            </div>
+          </header>
+
+          <dl class="teamstats">
+            <div><dt>Pilots</dt><dd><%= h.num(team.pilotCount) %></dd></div>
+            <div><dt>Kills</dt><dd class="good"><%= h.num(team.kills) %></dd></div>
+            <div><dt>Losses</dt><dd class="bad"><%= h.num(team.losses) %></dd></div>
+            <div><dt>Damage done</dt><dd><%= h.num(team.damageDone) %></dd></div>
+            <div><dt>Damage taken</dt><dd><%= h.num(team.damageTaken) %></dd></div>
+          </dl>
+
+          <div class="sharebar" title="<%= team.damageShare %>% of all damage dealt">
+            <span style="width: <%= Math.max(1, team.damageShare) %>%; background: <%= h.seriesColor(i) %>"></span>
+          </div>
+          <p class="sharelabel"><%= team.damageShare %>% of damage dealt</p>
+
+          <div class="table-scroll">
+            <table class="datatable">
+              <thead>
+                <tr>
+                  <th>Pilot</th>
+                  <th>Ship</th>
+                  <th class="num">Dmg done</th>
+                  <th class="num">Dmg taken</th>
+                  <th class="num">Lost</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% team.pilots.forEach((pilot) => { %>
+                  <tr class="<%= pilot.shipsLost ? 'pilot-lost' : '' %>">
+                    <td><a href="/character/<%= encodeURIComponent(pilot.name) %>"><%= pilot.name %></a></td>
+                    <td class="dim">
+                      <% if (pilot.shipList.length) { %>
+                        <%= pilot.shipList.slice(0, 2).join(', ') %><%= pilot.shipList.length > 2 ? ` +${pilot.shipList.length - 2}` : '' %>
+                      <% } else { %>—<% } %>
+                    </td>
+                    <td class="num"><%= h.num(pilot.damageDone) %></td>
+                    <td class="num dim"><%= pilot.damageTaken ? h.num(pilot.damageTaken) : '—' %></td>
+                    <td class="num"><%= pilot.shipsLost || '—' %></td>
+                  </tr>
+                <% }) %>
+              </tbody>
+            </table>
+          </div>
+        </article>
+      <% }) %>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2 class="panel-title">Killmails <span class="dim">(<%= kills.length %>)</span></h2>
+    <div class="killlist">
+      <% kills.slice().reverse().forEach((k) => { %>
+        <%- include('partials/killrow', { k }) %>
+      <% }) %>
+    </div>
+  </section>
+<% } %>
+
+<%- include('partials/footer') %>

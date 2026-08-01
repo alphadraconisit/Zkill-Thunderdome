@@ -1,0 +1,68 @@
+<%
+  // Cumulative damage over the battle, one line per side.
+  // Rendered server-side; public/js/app.js adds the crosshair and tooltip.
+  const labelled = chart.lines.length <= 4;
+%>
+<figure class="chartfigure" data-chart>
+  <figcaption class="chartcaption">
+    Cumulative damage dealt, by side. Totals step at each killmail.
+  </figcaption>
+
+  <div class="legend">
+    <% chart.lines.forEach((line) => { %>
+      <span class="legend-item">
+        <span class="legend-key" style="background: <%= line.color %>"></span>
+        <span class="legend-label"><%= line.label %></span>
+      </span>
+    <% }) %>
+  </div>
+
+  <div class="chartbox">
+   <div class="chartinner">
+    <svg viewBox="0 0 <%= chart.viewWidth %> <%= chart.viewHeight %>" role="img"
+         aria-label="Cumulative damage dealt by each side over the course of the battle">
+
+      <% chart.yTicks.forEach((tick) => { %>
+        <line class="gridline" x1="<%= chart.plot.x %>" y1="<%= tick.y.toFixed(1) %>"
+              x2="<%= chart.plot.x + chart.plot.w %>" y2="<%= tick.y.toFixed(1) %>"></line>
+        <text class="axislabel" x="<%= chart.plot.x - 10 %>" y="<%= (tick.y + 4).toFixed(1) %>"
+              text-anchor="end"><%= tick.label %></text>
+      <% }) %>
+
+      <% chart.xTicks.forEach((tick) => { %>
+        <text class="axislabel" x="<%= tick.x.toFixed(1) %>"
+              y="<%= chart.plot.y + chart.plot.h + 20 %>" text-anchor="middle"><%= tick.label %></text>
+      <% }) %>
+
+      <line class="axisline" x1="<%= chart.plot.x %>" y1="<%= chart.plot.y + chart.plot.h %>"
+            x2="<%= chart.plot.x + chart.plot.w %>" y2="<%= chart.plot.y + chart.plot.h %>"></line>
+
+      <g class="crosshair" hidden>
+        <line class="crosshair-line" y1="<%= chart.plot.y %>" y2="<%= chart.plot.y + chart.plot.h %>"></line>
+      </g>
+
+      <% chart.lines.forEach((line) => { %>
+        <path class="series" d="<%= line.d %>" stroke="<%= line.color %>"></path>
+      <% }) %>
+
+      <% chart.lines.forEach((line) => { %>
+        <circle class="series-end" cx="<%= line.last.x.toFixed(1) %>" cy="<%= line.last.y.toFixed(1) %>"
+                r="4" fill="<%= line.color %>"></circle>
+        <% if (labelled) { %>
+          <text class="series-endlabel" x="<%= (line.last.x + 10).toFixed(1) %>"
+                y="<%= (line.last.y + 4).toFixed(1) %>"><%= h.chartNumber(line.total) %></text>
+        <% } %>
+      <% }) %>
+
+      <rect class="chart-hit" x="<%= chart.plot.x %>" y="<%= chart.plot.y %>"
+            width="<%= chart.plot.w %>" height="<%= chart.plot.h %>" fill="transparent"></rect>
+    </svg>
+
+    <div class="charttip" hidden role="status"></div>
+   </div>
+  </div>
+
+  <script type="application/json" class="chartdata">
+    <%- JSON.stringify({ plot: chart.plot, viewWidth: chart.viewWidth, columns: chart.columns }) %>
+  </script>
+</figure>

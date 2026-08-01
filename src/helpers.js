@@ -104,8 +104,17 @@ function buildQuery(base, overrides) {
   return s ? `?${s}` : '';
 }
 
+const { compactNumber, SERIES_COLORS } = require('./chart');
+const { formatDuration } = require('./battle');
+
+/** Categorical slot for side `i`. Fixed order — never cycled past the list. */
+function seriesColor(i) {
+  return SERIES_COLORS[i % SERIES_COLORS.length];
+}
+
 module.exports = {
   formatDate, formatDateLong, timeAgo, num,
+  chartNumber: compactNumber, seriesColor, formatDuration,
   secClass, secText, pilotSecClass,
   entityUrl, tintFor, initials, pageRange, buildQuery,
 };

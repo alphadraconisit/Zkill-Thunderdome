@@ -18,6 +18,9 @@ indexing, and building per-pilot / corp / alliance / system / ship pages on top 
 - **Entity pages** for pilots, corporations, alliances, systems and ships, each with
   kills / losses / efficiency, All / Kills / Losses tabs, and side panels for ships flown,
   ships lost and who they fight alongside.
+- **Battle reports.** Aggregate any time window (optionally one system) into sides,
+  with per-pilot damage dealt and taken and a cumulative damage timeline. Sides are
+  inferred from who shoots alongside whom — no manual tagging.
 - **Search** across every pilot, corp, alliance, system and ship the board has ever seen.
 - **Leaderboards** for the last 30 days, falling back to all-time on a quiet board.
 - **JSON API** for reading and for automated submission.
@@ -154,6 +157,34 @@ There are two independent gates, so you can run the board any of three ways:
 - **Fully private** — also set `SITE_PASSWORD`; nothing is readable without it.
 - **Automated feed** — set `API_KEY` and post killmails from your server.
 
+## Battle reports
+
+`/battle` takes a time window and turns every killmail inside it into a two-or-more
+sided report: damage dealt and taken per side and per pilot, kills, losses, and a
+cumulative damage-over-time chart. Deliberately **no ISK anywhere** — a private
+server has no market to price hulls against, so damage is the honest currency.
+
+Pick a window with the presets (last hour through last 30 days) or explicit
+from/to fields, and optionally narrow to one system. Every kill detail page also
+carries a **Battle report** button, which opens the hour either side of that kill
+in the same system.
+
+### How sides are worked out
+
+There is no manual team tagging. Two entities that appear together on the same
+killmail's *attacker* list are treated as allies, and that relation is closed
+transitively, so a coalition of several alliances collapses into one side. An
+"entity" is a pilot's alliance, or their corporation when they have no alliance, or
+the pilot themselves when they have neither.
+
+Victims are never merged with their killers, so a fleet that only died still shows
+up as its own side. A side is named after its largest entity, with `+N allied`
+noting how many others folded into it.
+
+The heuristic has one known blind spot, the same one every killboard has: if two
+mutually hostile groups both shoot the same third party, they are merged. In
+practice that needs a three-way fight to trigger.
+
 ## Ship artwork
 
 Ship names are matched against EVE type IDs through ESI's `/universe/ids/` endpoint, and the
@@ -192,11 +223,15 @@ curl -X POST https://your-board.onrender.com/api/killmails \
 | `GET /api/health` | Health check — always reachable. |
 | `GET /kill/:id/raw` | The original pasted text, verbatim. |
 
+Battle reports are a page (`/battle?from=…&to=…&system=…`), not an API endpoint.
+
 ## Layout
 
 ```
 src/
   parser.js      killmail text -> structured data (no I/O)
+  battle.js      side inference and battle aggregation (no I/O)
+  chart.js       server-side SVG geometry for the damage timeline
   db.js          libSQL client, schema, transactional writes
   queries.js     read queries, stats and leaderboards
   ingest.js      parse + store + queue artwork lookups

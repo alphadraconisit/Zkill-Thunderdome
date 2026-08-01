@@ -19,6 +19,7 @@
     <nav class="mainnav">
       <a href="/" class="<%= path === '/' ? 'active' : '' %>">Home</a>
       <a href="/kills" class="<%= path === '/kills' ? 'active' : '' %>">Killmails</a>
+      <a href="/battle" class="<%= path.startsWith('/battle') ? 'active' : '' %>">Battles</a>
       <% if (isAdmin) { %><a href="/admin" class="<%= path.startsWith('/admin') ? 'active' : '' %>">Submit</a><% } %>
     </nav>
 

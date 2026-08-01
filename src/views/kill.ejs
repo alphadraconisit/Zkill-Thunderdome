@@ -62,6 +62,7 @@
       </dl>
 
       <div class="killhead-actions">
+        <a class="btn ghost" href="<%= battleUrl %>">Battle report</a>
         <a class="btn ghost" href="/kill/<%= kill.id %>/raw">Raw killmail</a>
         <% if (isAdmin) { %>
           <form action="/admin/delete/<%= kill.id %>" method="post"

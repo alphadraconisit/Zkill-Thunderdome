@@ -245,6 +245,57 @@ async function search(term, limit = 40) {
   });
 }
 
+const BATTLE_LIMIT = 2000;
+
+/**
+ * Every killmail in a time window, plus the attackers on those mails, for the
+ * battle report. Capped so a careless window cannot pull the whole board.
+ */
+async function battleWindow({ from, to, system = null }) {
+  const params = { from, to, limit: BATTLE_LIMIT };
+  let where = 'killed_at >= @from AND killed_at <= @to';
+  if (system) {
+    where += ' AND system = @system COLLATE NOCASE';
+    params.system = system;
+  }
+
+  const kills = await all(`
+    SELECT id, killed_at, victim_name, victim_corp, victim_alliance, ship, system,
+           security, damage_taken, attacker_count, final_blow
+    FROM killmails
+    WHERE ${where}
+    ORDER BY killed_at ASC, id ASC
+    LIMIT @limit
+  `, params);
+
+  if (!kills.length) return { kills: [], attackers: [], truncated: false };
+
+  const ids = kills.map((k) => k.id);
+  const placeholders = ids.map((_, i) => `@id${i}`).join(',');
+  const idParams = Object.fromEntries(ids.map((id, i) => [`id${i}`, id]));
+
+  const attackers = await all(`
+    SELECT killmail_id, name, corp, alliance, ship, weapon, damage, final_blow
+    FROM attackers
+    WHERE killmail_id IN (${placeholders})
+  `, idParams);
+
+  return { kills, attackers, truncated: kills.length === BATTLE_LIMIT };
+}
+
+/** Systems that have seen fighting, for the battle-report picker. */
+async function systemsWithKills(limit = 200) {
+  const rows = await all(`
+    SELECT system AS label, COUNT(*) AS n
+    FROM killmails
+    WHERE system IS NOT NULL
+    GROUP BY system COLLATE NOCASE
+    ORDER BY n DESC, label ASC
+    LIMIT @limit
+  `, { limit });
+  return rows;
+}
+
 async function distinctShipNames() {
   const rows = await all(`
     SELECT DISTINCT name FROM (
@@ -269,5 +320,8 @@ module.exports = {
   topSystems,
   activity,
   search,
+  battleWindow,
+  systemsWithKills,
   distinctShipNames,
+  BATTLE_LIMIT,
 };

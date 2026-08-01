@@ -40,6 +40,7 @@ app.use('/api', require('./routes/api'));
 app.use(auth.requireSite);
 app.use('/', require('./routes/auth'));
 app.use('/admin', require('./routes/admin'));
+app.use('/battle', require('./routes/battle'));
 app.use('/', require('./routes/board'));
 
 app.use((req, res) => {

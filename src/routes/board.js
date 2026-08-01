@@ -54,7 +54,19 @@ router.get('/kill/:id', wrap(async (req, res, next) => {
   const kill = await q.getKillmail(Number.parseInt(req.params.id, 10));
   if (!kill) return next();
 
-  res.render('kill', { title: `${kill.victim_name} — ${kill.ship}`, kill });
+  // A battle report centred on this kill: an hour either side, same system.
+  const at = new Date(kill.killed_at).getTime();
+  const battleQuery = new URLSearchParams({
+    from: new Date(at - 3600e3).toISOString().slice(0, 16),
+    to: new Date(at + 3600e3).toISOString().slice(0, 16),
+  });
+  if (kill.system) battleQuery.set('system', kill.system);
+
+  res.render('kill', {
+    title: `${kill.victim_name} — ${kill.ship}`,
+    kill,
+    battleUrl: `/battle?${battleQuery}`,
+  });
 }));
 
 router.get('/kill/:id/raw', wrap(async (req, res, next) => {

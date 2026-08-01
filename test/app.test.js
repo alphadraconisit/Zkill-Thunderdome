@@ -191,6 +191,44 @@ test('the raw killmail is served back verbatim', async () => {
   assert.match(raw, /Dropped items:/);
 });
 
+test('a battle report aggregates the window into sides', async () => {
+  const html = await (await fetch(
+    `${base}/battle?from=2026-06-27T15:00&to=2026-06-27T16:00`
+  )).text();
+
+  assert.match(html, /Damage timeline/);
+  assert.match(html, /Ahbazon-Prime/, 'the attacking alliance is a side');
+  assert.match(html, /OnlyAlts\./, 'the victim alliance is a side');
+  assert.match(html, /EF Zeta/);
+  assert.match(html, /2,763/, 'per-pilot damage is listed');
+  assert.doesNotMatch(html, /ISK/, 'battle reports carry no ISK figures');
+});
+
+test('a battle report with no killmails in range says so', async () => {
+  const html = await (await fetch(
+    `${base}/battle?from=2020-01-01T00:00&to=2020-01-02T00:00`
+  )).text();
+  assert.match(html, /No killmails between/);
+});
+
+test('the battle window accepts presets', async () => {
+  const res = await fetch(`${base}/battle?preset=30d`);
+  assert.equal(res.status, 200);
+});
+
+test('the kill page links to a battle report around that kill', async () => {
+  const list = await (await fetch(`${base}/api/killmails`)).json();
+  const html = await (await fetch(`${base}/kill/${list.killmails[0].id}`)).text();
+
+  const match = html.match(/href="(\/battle\?[^"]+)"/);
+  assert.ok(match, 'kill page should carry a battle report link');
+
+  const target = match[1].replace(/&amp;/g, '&');
+  const report = await fetch(base + target);
+  assert.equal(report.status, 200);
+  assert.match(await report.text(), /EF Zeta/);
+});
+
 test('unknown pages return 404', async () => {
   const res = await fetch(`${base}/kill/999999`);
   assert.equal(res.status, 404);

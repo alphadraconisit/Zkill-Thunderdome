@@ -507,10 +507,16 @@ pre.code {
   .killhead { grid-template-columns: 180px minmax(0, 1fr); }
 }
 
-@media (max-width: 760px) {
+/* The brand, three nav items, the search box and the account link stop fitting
+   on one line well before the main layout needs to change. */
+@media (max-width: 940px) {
   .topbar-inner { flex-wrap: wrap; height: auto; padding: .6rem 1rem; gap: .6rem; }
   .searchbox { order: 5; width: 100%; margin-left: 0; }
-  .searchbox input { width: 100%; }
+  .searchbox input { width: 100%; min-width: 0; }
+  .topbar-actions { margin-left: auto; }
+}
+
+@media (max-width: 760px) {
   .killrow { grid-template-columns: 48px minmax(0, 1fr) auto; grid-template-areas: "ship main time" "ship system meta"; row-gap: .25rem; }
   .killrow-ship { grid-area: ship; }
   .killrow-ship img, .shipfallback { width: 44px; height: 44px; }
@@ -522,4 +528,121 @@ pre.code {
   .killhead-ship { max-width: 200px; }
   .kv { grid-template-columns: 110px minmax(0, 1fr); }
   .hero-stats { gap: 1.25rem; }
+}
+
+/* ---------- battle reports ---------- */
+
+.filterbar {
+  display: flex;
+  align-items: flex-end;
+  gap: .75rem;
+  flex-wrap: wrap;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: .85rem 1rem;
+  margin-bottom: 1.25rem;
+}
+.filterfield { display: flex; flex-direction: column; gap: .25rem; }
+.filterfield label {
+  font-size: .7rem; text-transform: uppercase; letter-spacing: .09em; color: var(--text-dim);
+}
+.filterfield input {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  padding: .4rem .6rem;
+  font: inherit;
+  color-scheme: dark;
+}
+.filterfield input:focus { outline: none; border-color: var(--accent-dim); }
+.presets { display: flex; gap: .3rem; flex-wrap: wrap; margin-left: auto; }
+
+.battlehero { align-items: flex-start; }
+.battlewhen { text-align: right; font-size: .85rem; }
+
+/* Chart ------------------------------------------------------------------- */
+
+.chartfigure { margin: 0; }
+.chartcaption { color: var(--text-dim); font-size: .8rem; margin-bottom: .6rem; }
+
+.legend { display: flex; flex-wrap: wrap; gap: .25rem 1rem; margin-bottom: .5rem; }
+.legend-item { display: inline-flex; align-items: center; gap: .4rem; font-size: .82rem; }
+.legend-key { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
+.legend-label { color: var(--text); }
+
+/* Uniform scaling only — stretching the viewBox would squash the axis text.
+   Below the min-width the chart scrolls rather than shrinking out of legibility. */
+.chartbox { overflow-x: auto; }
+.chartinner { position: relative; min-width: 640px; }
+.chartinner svg { display: block; width: 100%; height: auto; }
+
+.gridline { stroke: var(--border-soft); stroke-width: 1; }
+.axisline { stroke: var(--border); stroke-width: 1; }
+.axislabel { fill: var(--text-dim); font-size: 11px; font-variant-numeric: tabular-nums; }
+
+.series { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.series-end { stroke: var(--panel); stroke-width: 2; }
+.series-endlabel {
+  fill: var(--text); font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums;
+}
+
+.crosshair-line { stroke: var(--text-dim); stroke-width: 1; }
+.chart-hit { cursor: crosshair; }
+
+.charttip {
+  position: absolute;
+  top: 8px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: .5rem .6rem;
+  pointer-events: none;
+  min-width: 150px;
+  box-shadow: 0 6px 20px rgb(0 0 0 / .45);
+}
+.charttip-time {
+  font-size: .72rem; text-transform: uppercase; letter-spacing: .08em;
+  color: var(--text-dim); margin-bottom: .35rem;
+}
+.charttip-row { display: flex; align-items: center; gap: .45rem; font-size: .82rem; padding: .1rem 0; }
+.charttip-key { width: 12px; height: 3px; border-radius: 2px; flex: none; }
+.charttip-value { color: var(--text-bright); font-weight: 600; font-variant-numeric: tabular-nums; }
+.charttip-label { color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Sides ------------------------------------------------------------------- */
+
+.teamgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 1.25rem; }
+
+.teamcard {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: .9rem 1rem;
+}
+.teamcard-head { display: flex; align-items: center; gap: .6rem; margin-bottom: .75rem; }
+.teamcard-head h3 { margin: 0; font-size: 1.05rem; }
+.teamswatch { width: 4px; height: 34px; border-radius: 2px; flex: none; }
+
+.teamstats { display: flex; flex-wrap: wrap; gap: .4rem 1.25rem; margin: 0 0 .7rem; }
+.teamstats div { display: flex; flex-direction: column; }
+.teamstats dt { font-size: .68rem; text-transform: uppercase; letter-spacing: .08em; color: var(--text-dim); }
+.teamstats dd { margin: 0; font-weight: 600; color: var(--text-bright); font-variant-numeric: tabular-nums; }
+.teamstats dd.good { color: var(--good); }
+.teamstats dd.bad { color: var(--bad); }
+
+.sharebar { height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+.sharebar > span { display: block; height: 100%; }
+.sharelabel { color: var(--text-dim); font-size: .78rem; margin: .3rem 0 .8rem; }
+
+.teamcard .datatable { font-size: .82rem; }
+.teamcard tr.pilot-lost td:first-child { border-left: 2px solid var(--bad); padding-left: .45rem; }
+
+@media (max-width: 760px) {
+  .presets { margin-left: 0; }
+  .filterfield { flex: 1 1 140px; }
+  .battlehero { flex-direction: column; }
+  .battlewhen { text-align: left; }
+  .teamgrid { grid-template-columns: minmax(0, 1fr); }
 }
