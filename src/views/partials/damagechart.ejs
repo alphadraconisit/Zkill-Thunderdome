@@ -24,7 +24,8 @@
 
       <% chart.yTicks.forEach((tick) => { %>
         <line class="gridline" x1="<%= chart.plot.x %>" y1="<%= tick.y.toFixed(1) %>"
-              x2="<%= chart.plot.x + chart.plot.w %>" y2="<%= tick.y.toFixed(1) %>"></line>
+              x2="<%= chart.plot.x + chart.plot.w %>" y2="<%= tick.y.toFixed(1) %>"
+              stroke="#1b222d" stroke-width="1"></line>
         <text class="axislabel" x="<%= chart.plot.x - 10 %>" y="<%= (tick.y + 4).toFixed(1) %>"
               text-anchor="end"><%= tick.label %></text>
       <% }) %>
@@ -42,7 +43,10 @@
       </g>
 
       <% chart.lines.forEach((line) => { %>
-        <path class="series" d="<%= line.d %>" stroke="<%= line.color %>"></path>
+        <%# fill and stroke-width are also attributes so a missing or stale
+            stylesheet degrades to a plain line, never a filled black shape. %>
+        <path class="series" d="<%= line.d %>" stroke="<%= line.color %>"
+              fill="none" stroke-width="2" stroke-linejoin="round"></path>
       <% }) %>
 
       <% chart.lines.forEach((line) => { %>

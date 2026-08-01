@@ -78,23 +78,82 @@ test('a one-sided gank splits into attacker and victim sides', () => {
   assert.equal(victimSide.damageTaken, 30000);
 });
 
-test('separate alliances that shoot together become one side', () => {
+test('each alliance is its own side, even when they shoot together', () => {
   const report = battle([
     kill({
       at: '2026-07-30T21:00:00.000Z',
       victim: 'Victim One', corp: 'Target Corp', alliance: 'Target Alliance',
       attackers: [
         { name: 'Ally A', corp: 'Corp A', alliance: 'Alliance A', damage: 5000 },
-        { name: 'Ally B', corp: 'Corp B', alliance: 'Alliance B', damage: 5000 },
+        { name: 'Ally B', corp: 'Corp B', alliance: 'Alliance B', damage: 3000 },
+      ],
+    }),
+  ]);
+
+  assert.equal(report.teams.length, 3, 'two attacking alliances plus the victim');
+  assert.deepEqual(
+    report.teams.map((t) => t.label),
+    ['Alliance A', 'Alliance B', 'Target Alliance'],
+    'sides are listed by damage dealt'
+  );
+
+  const a = report.teams.find((t) => t.label === 'Alliance A');
+  const b = report.teams.find((t) => t.label === 'Alliance B');
+  assert.equal(a.damageDone, 5000);
+  assert.equal(b.damageDone, 3000);
+  assert.equal(a.kills, 1);
+  assert.equal(b.kills, 1, 'both alliances are credited with the kill');
+});
+
+test('attackers are never folded into the side of the pilot they killed', () => {
+  // The regression that collapsed a real report into a single side: an
+  // attacker appearing on a mail must not join the victim's alliance.
+  const report = battle([
+    kill({
+      at: '2026-07-30T21:00:00.000Z',
+      victim: 'Uni One', corp: 'EVE University', alliance: null,
+      attackers: [{ name: 'Raider', corp: '0nly Fleets', alliance: null, damage: 9000 }],
+    }),
+    kill({
+      at: '2026-07-30T21:04:00.000Z',
+      victim: 'Uni Two', corp: 'EVE University', alliance: null,
+      attackers: [
+        { name: 'Raider', corp: '0nly Fleets', alliance: null, damage: 7000 },
+        { name: 'Raider Two', corp: '0nly Fleets', alliance: null, damage: 2000 },
       ],
     }),
   ]);
 
   assert.equal(report.teams.length, 2);
-  const allied = report.teams.find((t) => t.pilotCount === 2);
-  assert.equal(allied.alliedCount, 1, 'the two alliances merge into one side');
-  assert.equal(allied.entities.length, 2);
-  assert.equal(allied.damageDone, 10000);
+
+  const raiders = report.teams.find((t) => t.label === '0nly Fleets');
+  const uni = report.teams.find((t) => t.label === 'EVE University');
+
+  assert.equal(raiders.kills, 2);
+  assert.equal(raiders.losses, 0);
+  assert.equal(uni.kills, 0);
+  assert.equal(uni.losses, 2);
+  assert.equal(raiders.pilotCount, 2);
+  assert.equal(uni.pilotCount, 2);
+});
+
+test('a side tracks the corporations flying under it', () => {
+  const report = battle([
+    kill({
+      at: '2026-07-30T21:00:00.000Z',
+      victim: 'Victim', corp: 'Target Corp', alliance: 'Target Alliance',
+      attackers: [
+        { name: 'Pilot A', corp: 'First Corp', alliance: 'Big Alliance', damage: 5000 },
+        { name: 'Pilot B', corp: 'Second Corp', alliance: 'Big Alliance', damage: 3000 },
+      ],
+    }),
+  ]);
+
+  const big = report.teams.find((t) => t.label === 'Big Alliance');
+  assert.equal(big.pilotCount, 2);
+  assert.equal(big.corpCount, 2);
+  assert.deepEqual(big.corpList, ['First Corp', 'Second Corp']);
+  assert.equal(big.damageDone, 8000);
 });
 
 test('a two-sided fight keeps each side on its own team when both trade kills', () => {

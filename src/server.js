@@ -1,6 +1,8 @@
 'use strict';
 
+const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const express = require('express');
 const cookieParser = require('cookie-parser');
 
@@ -21,7 +23,26 @@ app.use(express.urlencoded({ extended: false, limit: '2mb' }));
 app.use(express.json({ limit: '2mb' }));
 app.use(express.text({ type: 'text/plain', limit: '2mb' }));
 app.use(cookieParser());
-app.use('/public', express.static(path.join(__dirname, '..', 'public'), { maxAge: '1h' }));
+const PUBLIC_DIR = path.join(__dirname, '..', 'public');
+app.use('/public', express.static(PUBLIC_DIR, { maxAge: '1y', immutable: true }));
+
+/**
+ * Cache-busting stamp for the stylesheet and script.
+ *
+ * Static assets are served with a long max-age, so without this a deploy keeps
+ * serving the previously cached CSS and the new markup renders unstyled. The
+ * stamp changes whenever either file changes.
+ */
+const ASSET_VERSION = (() => {
+  try {
+    const stamp = ['css/style.css', 'js/app.js']
+      .map((file) => fs.statSync(path.join(PUBLIC_DIR, file)).mtimeMs)
+      .join(':');
+    return crypto.createHash('sha1').update(stamp).digest('hex').slice(0, 8);
+  } catch {
+    return String(Date.now());
+  }
+})();
 
 app.use((req, res, next) => {
   res.locals.boardName = BOARD_NAME;
@@ -29,6 +50,7 @@ app.use((req, res, next) => {
   res.locals.esi = esi;
   res.locals.path = req.path;
   res.locals.query = req.query;
+  res.locals.assetVersion = ASSET_VERSION;
   next();
 });
 

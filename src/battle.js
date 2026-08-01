@@ -4,47 +4,25 @@
  * Battle report aggregation.
  *
  * A "battle" is just every killmail inside a time window (optionally one
- * system). The work is turning that pile of mails into sides.
+ * system). Sides are one per alliance: every pilot flying under the same
+ * alliance banner is one side, and no two alliances are ever merged.
  *
- * Sides are inferred from who shoots alongside whom: two entities that appear
- * on the same killmail's attacker list are on the same side, and that relation
- * is closed transitively. Victims are not merged with their killers, so a fleet
- * that only died still shows up as its own side.
- *
- * An "entity" is an alliance, or a corporation when there is no alliance, or a
- * lone pilot when there is neither — the same fallback a killboard uses when it
- * has to pick one label for a pilot.
+ * Pilots with no alliance fall back to their corporation, and pilots with
+ * neither stand alone — the same fallback a killboard uses when it has to pick
+ * one label for a pilot.
  */
 
-const MAX_CHART_SERIES = 6;
-
-class DisjointSet {
-  constructor() {
-    this.parent = new Map();
-  }
-
-  add(key) {
-    if (!this.parent.has(key)) this.parent.set(key, key);
-    return key;
-  }
-
-  find(key) {
-    let root = key;
-    while (this.parent.get(root) !== root) root = this.parent.get(root);
-    // Path compression, so long alliance chains stay cheap.
-    let cursor = key;
-    while (this.parent.get(cursor) !== root) {
-      const next = this.parent.get(cursor);
-      this.parent.set(cursor, root);
-      cursor = next;
-    }
-    return root;
-  }
-
-  union(a, b) {
-    const rootA = this.find(this.add(a));
-    const rootB = this.find(this.add(b));
-    if (rootA !== rootB) this.parent.set(rootB, rootA);
+class Side {
+  constructor(entity) {
+    this.key = entity.key;
+    this.label = entity.label;
+    this.kind = entity.kind;
+    this.pilots = [];
+    this.corporations = new Set();
+    this.kills = 0;
+    this.losses = 0;
+    this.damageDone = 0;
+    this.damageTaken = 0;
   }
 }
 
@@ -61,7 +39,7 @@ function pilotKey(name) {
 function emptyPilot(name) {
   return {
     name,
-    entityKey: null,
+    sideKey: null,
     corp: null,
     alliance: null,
     damageDone: 0,
@@ -73,7 +51,7 @@ function emptyPilot(name) {
 }
 
 /**
- * @param {Array} kills   killmail rows for the window
+ * @param {Array} kills     killmail rows for the window
  * @param {Array} attackers attacker rows for those killmails (with killmail_id)
  */
 function analyseBattle(kills, attackers) {
@@ -83,24 +61,21 @@ function analyseBattle(kills, attackers) {
     byKill.get(a.killmail_id).push(a);
   }
 
-  const dsu = new DisjointSet();
-  const entities = new Map(); // key -> { label, kind, pilots:Set }
+  const sides = new Map();
   const pilots = new Map();
-  const pilotEntityVotes = new Map(); // pilot -> Map(entityKey -> count)
+  const sideVotes = new Map(); // pilot -> Map(sideKey -> appearances)
 
-  const noteEntity = (entity) => {
-    dsu.add(entity.key);
-    if (!entities.has(entity.key)) {
-      entities.set(entity.key, { ...entity, pilots: new Set() });
-    }
+  const noteSide = (entity) => {
+    if (!sides.has(entity.key)) sides.set(entity.key, new Side(entity));
     return entity.key;
   };
 
-  const votePilotEntity = (name, entityKey) => {
+  const voteSide = (name, sideKey, corp) => {
     const key = pilotKey(name);
-    if (!pilotEntityVotes.has(key)) pilotEntityVotes.set(key, new Map());
-    const votes = pilotEntityVotes.get(key);
-    votes.set(entityKey, (votes.get(entityKey) || 0) + 1);
+    if (!sideVotes.has(key)) sideVotes.set(key, new Map());
+    const votes = sideVotes.get(key);
+    votes.set(sideKey, (votes.get(sideKey) || 0) + 1);
+    if (corp) sides.get(sideKey).corporations.add(corp);
   };
 
   const pilotFor = (name) => {
@@ -109,36 +84,27 @@ function analyseBattle(kills, attackers) {
     return pilots.get(key);
   };
 
-  // Pass 1: register everyone, and merge co-attackers into shared sides.
+  // Pass 1: every alliance that appears, on either side of a mail, is a side.
   for (const k of kills) {
-    const victimEntity = entityOf(k.victim_alliance, k.victim_corp, k.victim_name);
-    noteEntity(victimEntity);
-    votePilotEntity(k.victim_name, victimEntity.key);
+    const victimSide = noteSide(entityOf(k.victim_alliance, k.victim_corp, k.victim_name));
+    voteSide(k.victim_name, victimSide, k.victim_corp);
 
-    const rows = byKill.get(k.id) || [];
-    const attackerKeys = [];
-    for (const a of rows) {
-      const entity = entityOf(a.alliance, a.corp, a.name);
-      noteEntity(entity);
-      votePilotEntity(a.name, entity.key);
-      attackerKeys.push(entity.key);
-    }
-
-    for (let i = 1; i < attackerKeys.length; i++) {
-      dsu.union(attackerKeys[0], attackerKeys[i]);
+    for (const a of byKill.get(k.id) || []) {
+      const attackerSide = noteSide(entityOf(a.alliance, a.corp, a.name));
+      voteSide(a.name, attackerSide, a.corp);
     }
   }
 
-  // Each pilot lands on the entity they appeared under most often.
-  const entityForPilot = new Map();
-  for (const [key, votes] of pilotEntityVotes) {
+  // A pilot belongs to the side they appeared under most often, so a single
+  // mis-typed alliance on one mail does not split them in two.
+  const sideForPilot = new Map();
+  for (const [key, votes] of sideVotes) {
     let best = null;
     let bestCount = -1;
-    for (const [entityKey, count] of votes) {
-      if (count > bestCount) { best = entityKey; bestCount = count; }
+    for (const [sideKey, count] of votes) {
+      if (count > bestCount) { best = sideKey; bestCount = count; }
     }
-    entityForPilot.set(key, best);
-    entities.get(best).pilots.add(key);
+    sideForPilot.set(key, best);
   }
 
   // Pass 2: per-pilot damage, kills and losses.
@@ -161,116 +127,89 @@ function analyseBattle(kills, attackers) {
   }
 
   for (const [key, pilot] of pilots) {
-    pilot.entityKey = entityForPilot.get(key) || null;
+    pilot.sideKey = sideForPilot.get(key) || null;
+    if (pilot.sideKey && sides.has(pilot.sideKey)) sides.get(pilot.sideKey).pilots.push(pilot);
   }
 
-  // Group entities into teams by their disjoint-set root.
-  const teamsByRoot = new Map();
-  for (const [key, entity] of entities) {
-    const root = dsu.find(key);
-    if (!teamsByRoot.has(root)) teamsByRoot.set(root, { root, entities: [], pilots: [] });
-    teamsByRoot.get(root).entities.push(entity);
-  }
+  const sideOfPilot = (name) => sideForPilot.get(pilotKey(name)) || null;
 
-  for (const [key, pilot] of pilots) {
-    const entityKey = entityForPilot.get(key);
-    if (!entityKey) continue;
-    teamsByRoot.get(dsu.find(entityKey)).pilots.push(pilot);
-  }
-
-  const teamOfPilot = (name) => {
-    const entityKey = entityForPilot.get(pilotKey(name));
-    return entityKey ? dsu.find(entityKey) : null;
-  };
-
-  // Kills and losses are only meaningful once every pilot has a team.
-  for (const team of teamsByRoot.values()) {
-    team.kills = 0;
-    team.losses = 0;
-    team.damageDone = 0;
-    team.damageTaken = 0;
-  }
-
+  // Pass 3: credit kills and losses to sides.
   for (const k of kills) {
-    const victimTeam = teamOfPilot(k.victim_name);
-    if (victimTeam && teamsByRoot.has(victimTeam)) {
-      teamsByRoot.get(victimTeam).losses += 1;
-    }
+    const victimSide = sideOfPilot(k.victim_name);
+    if (victimSide && sides.has(victimSide)) sides.get(victimSide).losses += 1;
 
-    const creditedTeams = new Set();
+    const credited = new Set();
     for (const a of byKill.get(k.id) || []) {
-      const team = teamOfPilot(a.name);
-      if (team && team !== victimTeam) creditedTeams.add(team);
+      const side = sideOfPilot(a.name);
+      if (side && side !== victimSide) credited.add(side);
     }
-    for (const team of creditedTeams) {
-      if (teamsByRoot.has(team)) teamsByRoot.get(team).kills += 1;
-    }
+    for (const side of credited) sides.get(side).kills += 1;
   }
 
-  for (const team of teamsByRoot.values()) {
-    for (const pilot of team.pilots) {
-      team.damageDone += pilot.damageDone;
-      team.damageTaken += pilot.damageTaken;
+  for (const side of sides.values()) {
+    for (const pilot of side.pilots) {
+      side.damageDone += pilot.damageDone;
+      side.damageTaken += pilot.damageTaken;
+      pilot.shipList = [...pilot.ships];
     }
-    team.pilots.sort((a, b) => b.damageDone - a.damageDone || a.name.localeCompare(b.name));
-
-    // Name the side after its biggest entity, noting how many others joined it.
-    team.entities.sort((a, b) => b.pilots.size - a.pilots.size || a.label.localeCompare(b.label));
-    team.label = team.entities[0] ? team.entities[0].label : 'Unknown';
-    team.kind = team.entities[0] ? team.entities[0].kind : 'character';
-    team.alliedCount = team.entities.length - 1;
-    team.pilotCount = team.pilots.length;
+    side.pilots.sort((a, b) => b.damageDone - a.damageDone
+      || b.damageTaken - a.damageTaken
+      || a.name.localeCompare(b.name));
+    side.pilotCount = side.pilots.length;
+    side.corpCount = side.corporations.size;
+    side.corpList = [...side.corporations].sort();
   }
 
-  const teams = [...teamsByRoot.values()]
-    .filter((t) => t.pilotCount > 0)
-    .sort((a, b) => b.damageDone - a.damageDone || b.pilotCount - a.pilotCount);
+  const teams = [...sides.values()]
+    .filter((s) => s.pilotCount > 0)
+    .sort((a, b) => b.damageDone - a.damageDone
+      || b.pilotCount - a.pilotCount
+      || a.label.localeCompare(b.label));
 
   const totalDamage = teams.reduce((sum, t) => sum + t.damageDone, 0);
   for (const team of teams) {
     team.damageShare = totalDamage ? Math.round((team.damageDone / totalDamage) * 1000) / 10 : 0;
-    for (const pilot of team.pilots) pilot.shipList = [...pilot.ships];
   }
 
   return {
     teams,
-    timeline: buildTimeline(kills, byKill, teams, teamOfPilot),
+    timeline: buildTimeline(kills, byKill, teams, sideOfPilot),
     summary: summarise(kills, teams, totalDamage),
   };
 }
 
-/** Cumulative damage per team at each killmail, for the timeline chart. */
-function buildTimeline(kills, byKill, teams, teamOfPilot) {
+/** Cumulative damage per side at each killmail, for the timeline chart. */
+function buildTimeline(kills, byKill, teams, sideOfPilot) {
   const ordered = [...kills].sort((a, b) => a.killed_at.localeCompare(b.killed_at));
   if (!ordered.length) return { series: [], events: [] };
 
-  const running = new Map(teams.map((t) => [t.root, 0]));
-  const series = new Map(teams.map((t) => [t.root, []]));
+  const running = new Map(teams.map((t) => [t.key, 0]));
+  const series = new Map(teams.map((t) => [t.key, []]));
 
   const start = new Date(ordered[0].killed_at).getTime();
-  for (const team of teams) series.get(team.root).push({ t: start, v: 0 });
+  for (const team of teams) series.get(team.key).push({ t: start, v: 0 });
 
   const events = [];
   for (const k of ordered) {
     const at = new Date(k.killed_at).getTime();
 
     for (const a of byKill.get(k.id) || []) {
-      const team = teamOfPilot(a.name);
-      if (team != null && running.has(team)) {
-        running.set(team, running.get(team) + (a.damage || 0));
+      const side = sideOfPilot(a.name);
+      if (side != null && running.has(side)) {
+        running.set(side, running.get(side) + (a.damage || 0));
       }
     }
 
-    for (const team of teams) series.get(team.root).push({ t: at, v: running.get(team.root) });
+    for (const team of teams) series.get(team.key).push({ t: at, v: running.get(team.key) });
     events.push({ t: at, id: k.id, victim: k.victim_name, ship: k.ship });
   }
 
   return {
     series: teams.map((team) => ({
-      root: team.root,
+      key: team.key,
       label: team.label,
-      points: series.get(team.root),
-      total: running.get(team.root),
+      points: series.get(team.key),
+      total: running.get(team.key),
     })),
     events,
   };
@@ -306,4 +245,4 @@ function formatDuration(ms) {
   return rest ? `${hours}h ${rest}m` : `${hours}h`;
 }
 
-module.exports = { analyseBattle, entityOf, formatDuration, MAX_CHART_SERIES };
+module.exports = { analyseBattle, entityOf, formatDuration };

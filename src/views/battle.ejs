@@ -2,11 +2,11 @@
 
 <form class="filterbar" method="get" action="/battle">
   <div class="filterfield">
-    <label for="from">From (EVE time)</label>
+    <label for="from">From &mdash; EVE time (UTC)</label>
     <input type="datetime-local" id="from" name="from" value="<%= window.fromInput %>">
   </div>
   <div class="filterfield">
-    <label for="to">To</label>
+    <label for="to">To &mdash; EVE time (UTC)</label>
     <input type="datetime-local" id="to" name="to" value="<%= window.toInput %>">
   </div>
   <div class="filterfield">
@@ -25,6 +25,14 @@
          href="<%= h.buildQuery(system ? { system } : {}, { preset: key }) %>"><%= value.label %></a>
     <% }) %>
   </div>
+
+  <%# The date widget renders in the viewer's locale format, so spell the
+      window out — otherwise a non-UTC reader reads it as an offset clock. %>
+  <p class="filterhint">
+    Searching <strong><%= h.formatDateLong(window.from) %></strong>
+    to <strong><%= h.formatDateLong(window.to) %></strong> EVE time
+    <span class="dim">(<%= duration %> window<%= system ? `, ${system} only` : ', all systems' %>)</span>
+  </p>
 </form>
 
 <% if (!report.summary.killmails) { %>
@@ -93,62 +101,63 @@
     <h2 class="panel-title">Sides <span class="dim">(<%= report.teams.length %>)</span></h2>
     <div class="teamgrid">
       <% report.teams.forEach((team, i) => { %>
-        <article class="teamcard">
+        <% const topPilotDamage = Math.max(1, ...team.pilots.map((p) => p.damageDone)); %>
+        <article class="teamcard" style="--team: <%= h.seriesColor(i) %>">
           <header class="teamcard-head">
-            <span class="teamswatch" style="background: <%= h.seriesColor(i) %>"></span>
-            <div>
+            <div class="teamcard-title">
               <h3>
                 <% if (h.entityUrl(team.kind, team.label)) { %>
                   <a href="<%= h.entityUrl(team.kind, team.label) %>"><%= team.label %></a>
                 <% } else { %><%= team.label %><% } %>
               </h3>
               <span class="dim">
-                <%= team.kind %><% if (team.alliedCount) { %> + <%= team.alliedCount %> allied<% } %>
+                <%= team.kind %><% if (team.corpCount > 1) { %> &middot; <%= team.corpCount %> corps<% } %>
               </span>
+            </div>
+            <div class="teamcard-damage">
+              <span class="teamcard-damage-n"><%= h.chartNumber(team.damageDone) %></span>
+              <span class="teamcard-damage-l">damage dealt</span>
             </div>
           </header>
 
+          <div class="sharebar" title="<%= team.damageShare %>% of all damage dealt">
+            <span style="width: <%= Math.max(1, team.damageShare) %>%"></span>
+          </div>
+
           <dl class="teamstats">
             <div><dt>Pilots</dt><dd><%= h.num(team.pilotCount) %></dd></div>
+            <div><dt>Ships lost</dt><dd class="bad"><%= h.num(team.losses) %></dd></div>
             <div><dt>Kills</dt><dd class="good"><%= h.num(team.kills) %></dd></div>
-            <div><dt>Losses</dt><dd class="bad"><%= h.num(team.losses) %></dd></div>
-            <div><dt>Damage done</dt><dd><%= h.num(team.damageDone) %></dd></div>
             <div><dt>Damage taken</dt><dd><%= h.num(team.damageTaken) %></dd></div>
+            <div><dt>Share</dt><dd><%= team.damageShare %>%</dd></div>
           </dl>
 
-          <div class="sharebar" title="<%= team.damageShare %>% of all damage dealt">
-            <span style="width: <%= Math.max(1, team.damageShare) %>%; background: <%= h.seriesColor(i) %>"></span>
-          </div>
-          <p class="sharelabel"><%= team.damageShare %>% of damage dealt</p>
+          <ol class="pilotlist">
+            <% team.pilots.forEach((pilot) => { %>
+              <li class="pilotrow <%= pilot.shipsLost ? 'is-lost' : '' %>">
+                <span class="pilotrow-main">
+                  <a class="pilotrow-name" href="/character/<%= encodeURIComponent(pilot.name) %>"><%= pilot.name %></a>
+                  <span class="pilotrow-ship">
+                    <% if (pilot.shipList.length) { %>
+                      <%= pilot.shipList.slice(0, 2).join(', ') %><%= pilot.shipList.length > 2 ? ` +${pilot.shipList.length - 2}` : '' %>
+                    <% } else { %>—<% } %>
+                    <% if (pilot.shipsLost) { %>
+                      <span class="lostmark" title="Ships lost"><%= pilot.shipsLost %> lost</span>
+                    <% } %>
+                  </span>
+                </span>
 
-          <div class="table-scroll">
-            <table class="datatable">
-              <thead>
-                <tr>
-                  <th>Pilot</th>
-                  <th>Ship</th>
-                  <th class="num">Dmg done</th>
-                  <th class="num">Dmg taken</th>
-                  <th class="num">Lost</th>
-                </tr>
-              </thead>
-              <tbody>
-                <% team.pilots.forEach((pilot) => { %>
-                  <tr class="<%= pilot.shipsLost ? 'pilot-lost' : '' %>">
-                    <td><a href="/character/<%= encodeURIComponent(pilot.name) %>"><%= pilot.name %></a></td>
-                    <td class="dim">
-                      <% if (pilot.shipList.length) { %>
-                        <%= pilot.shipList.slice(0, 2).join(', ') %><%= pilot.shipList.length > 2 ? ` +${pilot.shipList.length - 2}` : '' %>
-                      <% } else { %>—<% } %>
-                    </td>
-                    <td class="num"><%= h.num(pilot.damageDone) %></td>
-                    <td class="num dim"><%= pilot.damageTaken ? h.num(pilot.damageTaken) : '—' %></td>
-                    <td class="num"><%= pilot.shipsLost || '—' %></td>
-                  </tr>
-                <% }) %>
-              </tbody>
-            </table>
-          </div>
+                <span class="pilotrow-figures">
+                  <span class="pilotrow-dealt"><%= h.num(pilot.damageDone) %></span>
+                  <span class="pilotrow-recvd"><%= pilot.damageTaken ? h.num(pilot.damageTaken) + ' recvd' : '0 recvd' %></span>
+                </span>
+
+                <span class="pilotrow-bar">
+                  <span style="width: <%= Math.round((pilot.damageDone / topPilotDamage) * 100) %>%"></span>
+                </span>
+              </li>
+            <% }) %>
+          </ol>
         </article>
       <% }) %>
     </div>

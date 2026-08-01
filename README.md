@@ -18,9 +18,9 @@ indexing, and building per-pilot / corp / alliance / system / ship pages on top 
 - **Entity pages** for pilots, corporations, alliances, systems and ships, each with
   kills / losses / efficiency, All / Kills / Losses tabs, and side panels for ships flown,
   ships lost and who they fight alongside.
-- **Battle reports.** Aggregate any time window (optionally one system) into sides,
-  with per-pilot damage dealt and taken and a cumulative damage timeline. Sides are
-  inferred from who shoots alongside whom — no manual tagging.
+- **Battle reports.** Aggregate any time window (optionally one system) into sides —
+  one per alliance — with per-pilot damage dealt and taken and a cumulative damage
+  timeline.
 - **Search** across every pilot, corp, alliance, system and ship the board has ever seen.
 - **Leaderboards** for the last 30 days, falling back to all-time on a quiet board.
 - **JSON API** for reading and for automated submission.
@@ -171,19 +171,18 @@ in the same system.
 
 ### How sides are worked out
 
-There is no manual team tagging. Two entities that appear together on the same
-killmail's *attacker* list are treated as allies, and that relation is closed
-transitively, so a coalition of several alliances collapses into one side. An
-"entity" is a pilot's alliance, or their corporation when they have no alliance, or
-the pilot themselves when they have neither.
+**One side per alliance.** Every pilot flying under the same alliance banner is
+one side, and two alliances are never merged into a coalition — if three
+alliances are on grid, you get three columns.
 
-Victims are never merged with their killers, so a fleet that only died still shows
-up as its own side. A side is named after its largest entity, with `+N allied`
-noting how many others folded into it.
+Pilots with no alliance fall back to their corporation, and pilots with neither
+stand alone. A pilot who appears under different banners across the window is
+assigned the one they appeared under most often, so a single mis-typed alliance
+on one mail cannot split them in two.
 
-The heuristic has one known blind spot, the same one every killboard has: if two
-mutually hostile groups both shoot the same third party, they are merged. In
-practice that needs a three-way fight to trigger.
+Kills are credited to every side that landed damage on a mail whose victim was on
+a different side, so a side that only assisted still shows the kill. Damage dealt
+and damage taken are summed from the mails themselves, never inferred.
 
 ## Ship artwork
 
@@ -230,7 +229,7 @@ Battle reports are a page (`/battle?from=…&to=…&system=…`), not an API end
 ```
 src/
   parser.js      killmail text -> structured data (no I/O)
-  battle.js      side inference and battle aggregation (no I/O)
+  battle.js      side grouping and battle aggregation (no I/O)
   chart.js       server-side SVG geometry for the damage timeline
   db.js          libSQL client, schema, transactional writes
   queries.js     read queries, stats and leaderboards

@@ -558,6 +558,8 @@ pre.code {
 }
 .filterfield input:focus { outline: none; border-color: var(--accent-dim); }
 .presets { display: flex; gap: .3rem; flex-wrap: wrap; margin-left: auto; }
+.filterhint { flex-basis: 100%; margin: .1rem 0 0; font-size: .8rem; color: var(--text-dim); }
+.filterhint strong { color: var(--text); font-weight: 600; }
 
 .battlehero { align-items: flex-start; }
 .battlewhen { text-align: right; font-size: .85rem; }
@@ -618,26 +620,70 @@ pre.code {
 .teamcard {
   background: var(--panel-2);
   border: 1px solid var(--border);
+  border-top: 3px solid var(--team, var(--accent));
   border-radius: var(--radius);
-  padding: .9rem 1rem;
+  padding: .9rem 1rem 1rem;
 }
-.teamcard-head { display: flex; align-items: center; gap: .6rem; margin-bottom: .75rem; }
-.teamcard-head h3 { margin: 0; font-size: 1.05rem; }
-.teamswatch { width: 4px; height: 34px; border-radius: 2px; flex: none; }
+.teamcard-head {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 1rem; margin-bottom: .6rem;
+}
+.teamcard-title h3 { margin: 0 0 .1rem; font-size: 1.1rem; }
+.teamcard-title .dim { font-size: .75rem; text-transform: capitalize; }
+.teamcard-damage { text-align: right; line-height: 1.1; }
+.teamcard-damage-n { display: block; font-size: 1.35rem; font-weight: 700; color: var(--team, var(--text-bright)); }
+.teamcard-damage-l {
+  display: block; font-size: .66rem; text-transform: uppercase;
+  letter-spacing: .09em; color: var(--text-dim);
+}
 
-.teamstats { display: flex; flex-wrap: wrap; gap: .4rem 1.25rem; margin: 0 0 .7rem; }
+.sharebar { height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; margin-bottom: .8rem; }
+.sharebar > span { display: block; height: 100%; background: var(--team, var(--accent)); }
+
+.teamstats {
+  display: flex; flex-wrap: wrap; gap: .5rem 1.4rem;
+  margin: 0 0 .9rem; padding-bottom: .8rem;
+  border-bottom: 1px solid var(--border-soft);
+}
 .teamstats div { display: flex; flex-direction: column; }
-.teamstats dt { font-size: .68rem; text-transform: uppercase; letter-spacing: .08em; color: var(--text-dim); }
+.teamstats dt { font-size: .66rem; text-transform: uppercase; letter-spacing: .08em; color: var(--text-dim); }
 .teamstats dd { margin: 0; font-weight: 600; color: var(--text-bright); font-variant-numeric: tabular-nums; }
 .teamstats dd.good { color: var(--good); }
 .teamstats dd.bad { color: var(--bad); }
 
-.sharebar { height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
-.sharebar > span { display: block; height: 100%; }
-.sharelabel { color: var(--text-dim); font-size: .78rem; margin: .3rem 0 .8rem; }
+.pilotlist { list-style: none; margin: 0; padding: 0; }
+.pilotrow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "main figures" "bar bar";
+  gap: .15rem .75rem;
+  align-items: baseline;
+  padding: .4rem .45rem .5rem;
+  border-radius: 3px;
+}
+.pilotrow:hover { background: rgb(255 255 255 / .03); }
+.pilotrow.is-lost { box-shadow: inset 2px 0 0 var(--bad); }
 
-.teamcard .datatable { font-size: .82rem; }
-.teamcard tr.pilot-lost td:first-child { border-left: 2px solid var(--bad); padding-left: .45rem; }
+.pilotrow-main { grid-area: main; min-width: 0; display: flex; flex-direction: column; gap: .1rem; }
+.pilotrow-name { font-weight: 600; }
+.pilotrow-ship {
+  font-size: .78rem; color: var(--text-dim);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.lostmark {
+  color: var(--bad); font-size: .7rem; text-transform: uppercase;
+  letter-spacing: .05em; margin-left: .35rem;
+}
+
+.pilotrow-figures { grid-area: figures; text-align: right; line-height: 1.2; }
+.pilotrow-dealt {
+  display: block; font-weight: 600; color: var(--text-bright); font-variant-numeric: tabular-nums;
+}
+.pilotrow-recvd { display: block; font-size: .72rem; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+
+.pilotrow-bar { grid-area: bar; height: 2px; background: var(--border-soft); border-radius: 1px; overflow: hidden; }
+.pilotrow-bar > span { display: block; height: 100%; background: var(--team, var(--accent)); opacity: .7; }
+
 
 @media (max-width: 760px) {
   .presets { margin-left: 0; }
