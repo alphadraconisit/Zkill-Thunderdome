@@ -25,6 +25,11 @@ services:
       - key: SESSION_SECRET
         generateValue: true
       # Set these in the Render dashboard; they are deliberately not stored here.
+      #
+      # ADMIN_PASSWORD  required — unlocks /admin so you can paste killmails.
+      # API_KEY         optional — enables POST /api/killmails for automation.
+      # SITE_PASSWORD   LEAVE BLANK for a public board. Setting it hides every
+      #                 page behind a login.
       - key: ADMIN_PASSWORD
         sync: false
       - key: API_KEY
